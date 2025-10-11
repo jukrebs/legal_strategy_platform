@@ -1,0 +1,55 @@
+# General settings
+verbose: false
+operations:
+ # - create-collection
+ # - ingest
+  - search  # Uncomment to run a search as part of the workflow
+
+# Weaviate connection details (values can reference environment variables)
+weaviate:
+  url: "${WEAVIATE_URL}"
+  api_key: "${WEAVIATE_API_KEY}"
+  openai_api_key: "${OPENAI_APIKEY}"
+  timeout: 30
+
+# Collection configuration
+collection:
+  name: RecklessDisorderlyMock
+  vectorizer: text2vec-openai
+  embedding_model: text-embedding-3-large
+  force_recreate: false
+  skip_create: false
+  extra_properties:
+    - name: absolute_url
+      description: "Canonical case URL on CourtListener."
+    - name: judge
+      description: "Presiding judge for the opinion."
+
+# Ingestion settings
+ingest:
+  input: data/filtered_reckless_driving_cases.json
+  input_format: auto
+  data_key:
+  id_field: cluster_id
+  text_field: syllabus
+  title_field: caseName
+  metadata_fields:
+    - court
+    - dateFiled
+  limit:
+  dry_run: false
+  preview: 3
+  log_every: 50
+
+# Similarity search settings
+search:
+  collection: RecklessDisorderlyMock
+  query: 
+  query_file: data/state_v_ryder.pdf
+  case_json:
+  text_field: syllabus
+  title_field: caseName
+  top_k: 200
+  include_distance: true
+  snippet_width: 180
+  show_metadata: true
