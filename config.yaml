@@ -1,9 +1,9 @@
 # General settings
 verbose: false
 operations:
-  - create-collection
-  - ingest
-#  - search  # Uncomment to run a search as part of the workflow
+ # - create-collection
+ # - ingest
+  - search  # Uncomment to run a search as part of the workflow
 
 # Weaviate connection details (values can reference environment variables)
 weaviate:
@@ -14,37 +14,42 @@ weaviate:
 
 # Collection configuration
 collection:
-  name: CourtCase
+  name: RecklessDisorderlyMock
   vectorizer: text2vec-openai
   embedding_model: text-embedding-3-large
   force_recreate: false
   skip_create: false
+  extra_properties:
+    - name: absolute_url
+      description: "Canonical case URL on CourtListener."
+    - name: judge
+      description: "Presiding judge for the opinion."
 
 # Ingestion settings
 ingest:
-  input: data/court_cases.json        # Path to your dataset (JSON/JSONL)
-  input_format: auto                  # auto | json | jsonl
-  data_key:                           # Set if the JSON root contains the array under a key
-  id_field: id
-  text_field: description
-  title_field: title
+  input: data/filtered_reckless_driving_cases.json
+  input_format: auto
+  data_key:
+  id_field: cluster_id
+  text_field: syllabus
+  title_field: caseName
   metadata_fields:
-    - jurisdiction
-    - filing_date
+    - court
+    - dateFiled
   limit:
-  dry_run: true                       # Set to false to push data to Weaviate
+  dry_run: false
   preview: 3
   log_every: 50
 
 # Similarity search settings
 search:
-  collection: CourtCase
-  query: motion to dismiss for lack of jurisdiction
-  query_file:
+  collection: RecklessDisorderlyMock
+  query: 
+  query_file: data/state_v_ryder.pdf
   case_json:
-  text_field: description
-  title_field: title
-  top_k: 5
+  text_field: syllabus
+  title_field: caseName
+  top_k: 200
   include_distance: true
   snippet_width: 180
   show_metadata: true

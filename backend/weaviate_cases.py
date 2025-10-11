@@ -15,6 +15,7 @@ an existing Weaviate instance (local or cloud).  Authenticate via `WEAVIATE_URL`
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import logging
 import os
@@ -67,6 +68,7 @@ class CollectionOptions:
     embedding_model: Optional[str]
     force_recreate: bool
     skip_create: bool
+    extra_properties: List[Dict[str, str]]
 
 
 def build_connection_options(config: Dict[str, Any]) -> ConnectionOptions:
@@ -85,7 +87,8 @@ def build_connection_options(config: Dict[str, Any]) -> ConnectionOptions:
 
     openai_api_key = cfg.get("openai_api_key")
     if openai_api_key in ("", None):
-        openai_api_key = os.environ.get("OPENAI_APIKEY")
+        # Accept both common env var names
+        openai_api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENAI_APIKEY")
 
     timeout = cfg.get("timeout", REQUEST_TIMEOUT)
 
@@ -103,12 +106,33 @@ def build_collection_options(config: Dict[str, Any]) -> CollectionOptions:
     if not isinstance(cfg, dict):
         raise SystemExit("'collection' section in config must be a mapping.")
 
+    raw_extra_properties = cfg.get("extra_properties", [])
+    extra_properties: List[Dict[str, str]] = []
+    if isinstance(raw_extra_properties, list):
+        for entry in raw_extra_properties:
+            if isinstance(entry, str):
+                extra_properties.append({"name": entry, "description": ""})
+            elif isinstance(entry, dict) and "name" in entry:
+                extra_properties.append(
+                    {
+                        "name": str(entry["name"]),
+                        "description": str(entry.get("description", "")),
+                    }
+                )
+            else:
+                raise SystemExit(
+                    "Each item in collection.extra_properties must be either a string or a mapping with a 'name'."
+                )
+    elif raw_extra_properties:
+        raise SystemExit("collection.extra_properties must be a list when provided.")
+
     return CollectionOptions(
         name=cfg.get("name", DEFAULT_COLLECTION_NAME),
         vectorizer=cfg.get("vectorizer", "text2vec-weaviate"),
         embedding_model=cfg.get("embedding_model"),
         force_recreate=bool(cfg.get("force_recreate", False)),
         skip_create=bool(cfg.get("skip_create", False)),
+        extra_properties=extra_properties,
     )
 
 
@@ -174,11 +198,15 @@ def connect_weaviate_client(connection: ConnectionOptions) -> Any:
     if hasattr(weaviate, "connect_to_weaviate_cloud") and Auth is not None:
         auth_credentials = Auth.api_key(connection.api_key) if connection.api_key else None
         logging.debug("Connecting to Weaviate using connect_to_weaviate_cloud helper.")
-        client = weaviate.connect_to_weaviate_cloud(
-            cluster_url=connection.url,
-            auth_credentials=auth_credentials,
-            headers=base_headers or None,
-        )
+        connect_kwargs = {
+            "cluster_url": connection.url,
+            "auth_credentials": auth_credentials,
+        }
+        if base_headers:
+            connect_kwargs["headers"] = base_headers
+            if "grpc_headers" in inspect.signature(weaviate.connect_to_weaviate_cloud).parameters:
+                connect_kwargs["grpc_headers"] = base_headers
+        client = weaviate.connect_to_weaviate_cloud(**connect_kwargs)
         return client
 
     # Legacy (3.x) fallback.
@@ -192,10 +220,15 @@ def connect_weaviate_client(connection: ConnectionOptions) -> Any:
                 "The installed weaviate-client version does not support API key authentication. "
                 "Upgrade to >=3.24 or use the environment.yml provided in this project."
             ) from exc
-    client = weaviate.Client(  # type: ignore[call-arg]
+    client_kwargs = {
+        "timeout_config": (connection.timeout, connection.timeout),
+        "additional_headers": base_headers or None,
+    }
+    if base_headers and "grpc_headers" in inspect.signature(weaviate.Client).parameters:
+        client_kwargs["grpc_headers"] = base_headers
+    client = weaviate.Client(  # type: ignore[call-arg,arg-type]
         connection.url,
-        timeout_config=(connection.timeout, connection.timeout),
-        additional_headers=base_headers or None,
+        **client_kwargs,
         **auth_kwargs,
     )
     return client
@@ -246,6 +279,16 @@ def create_collection(
     collection: CollectionOptions,
 ) -> None:
     """Create the target collection with sensible defaults."""
+    def property_schema(name: str, description: str, include_in_vector: bool) -> Dict[str, Any]:
+        prop: Dict[str, Any] = {
+            "name": name,
+            "dataType": ["text"],
+            "description": description,
+        }
+        if not include_in_vector:
+            prop["moduleConfig"] = {collection.vectorizer: {"skip": True}}
+        return prop
+
     base_url = normalize_url(connection.url)
     headers = build_http_headers(connection)
 
@@ -265,28 +308,28 @@ def create_collection(
         "vectorizer": collection.vectorizer,
         "moduleConfig": module_config,
         "properties": [
-            {
-                "name": "case_id",
-                "dataType": ["text"],
-                "description": "Original case identifier.",
-            },
-            {
-                "name": "title",
-                "dataType": ["text"],
-                "description": "Case caption or title.",
-            },
-            {
-                "name": "body",
-                "dataType": ["text"],
-                "description": "Case narrative or opinion text.",
-            },
-            {
-                "name": "metadata",
-                "dataType": ["text"],
-                "description": "Additional metadata in JSON format.",
-            },
+            property_schema("case_id", "Original case identifier.", include_in_vector=False),
+            property_schema("title", "Case caption or title.", include_in_vector=False),
+            property_schema("body", "Case narrative or opinion text.", include_in_vector=True),
+            property_schema("metadata", "Additional metadata in JSON format.", include_in_vector=False),
+            property_schema(
+                "source_file",
+                "Name of the source JSON file the record originated from.",
+                include_in_vector=False,
+            ),
         ],
     }
+
+    existing_property_names = {prop["name"] for prop in schema_definition["properties"]}
+    for extra_property in collection.extra_properties:
+        prop_name = extra_property.get("name")
+        if not prop_name or prop_name in existing_property_names:
+            continue
+        description = extra_property.get("description") or f"Additional field '{prop_name}'."
+        schema_definition["properties"].append(
+            property_schema(prop_name, description, include_in_vector=False)
+        )
+        existing_property_names.add(prop_name)
 
     response = requests.post(
         f"{base_url}/v1/schema",
@@ -447,6 +490,52 @@ def format_metadata(metadata: Dict[str, Any]) -> str:
     return json.dumps(metadata, ensure_ascii=False)
 
 
+def derive_query_via_reasoning(
+    document_text: str,
+    *,
+    connection: ConnectionOptions,
+    model: Optional[str],
+    effort: Optional[str],
+    api_base: Optional[str],
+) -> str:
+    """Call the OpenAI Responses API to produce a single natural-language query."""
+    import os
+    from openai import OpenAI  # type: ignore[import]
+
+    api_key = (
+        connection.openai_api_key
+        or os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("OPENAI_APIKEY")
+    )
+
+    base_url = (api_base or os.environ.get("OPENAI_API_BASE") or "https://api.openai.com/v1").rstrip("/")
+    model_name = (model or "gpt-5").strip().replace(" ", "-").lower()
+    effort_level = (effort or "high").strip().lower()
+
+    trimmed = (document_text or "").strip()
+    if len(trimmed) > 15000:
+        trimmed = trimmed[:15000]
+
+    prompt = (
+        "Produce a natural-language query for semantic retrieval of similar court cases based on the input. "
+        "Output ONLY the query text, no quotes, labels, or commentary.\n\n"
+        f"Document:\n{trimmed}"
+    )
+
+    client = OpenAI(api_key=api_key, base_url=base_url, max_retries=0)
+    result = client.responses.create(
+        model=model_name,
+        input=prompt,
+        reasoning={"effort": effort_level},
+        max_output_tokens=4000,
+        text={"verbosity": "low"},
+    )
+
+    return (result.output_text or "").strip()
+
+
+
+
 def build_ingest_namespace(config: Dict[str, Any]) -> SimpleNamespace:
     """Create a namespace of ingestion options sourced from config."""
     ingest_cfg = config.get("ingest")
@@ -477,7 +566,11 @@ def build_ingest_namespace(config: Dict[str, Any]) -> SimpleNamespace:
     )
 
 
-def build_search_namespace(config: Dict[str, Any], default_collection: str) -> Tuple[str, SimpleNamespace]:
+def build_search_namespace(
+    config: Dict[str, Any],
+    default_collection: str,
+    extra_property_names: Iterable[str],
+) -> Tuple[str, SimpleNamespace]:
     """Create a namespace of search options sourced from config."""
     search_cfg = config.get("search")
     if search_cfg is None:
@@ -486,6 +579,8 @@ def build_search_namespace(config: Dict[str, Any], default_collection: str) -> T
         raise SystemExit("'search' section must be a mapping.")
 
     collection_name = search_cfg.get("collection", default_collection)
+
+    extra_names_list = [name for name in extra_property_names if name]
 
     return collection_name, SimpleNamespace(
         query=search_cfg.get("query"),
@@ -497,12 +592,19 @@ def build_search_namespace(config: Dict[str, Any], default_collection: str) -> T
         include_distance=bool(search_cfg.get("include_distance", False)),
         snippet_width=search_cfg.get("snippet_width", 180),
         show_metadata=bool(search_cfg.get("show_metadata", False)),
+        extra_property_names=extra_names_list,
+        reasoning_model=search_cfg.get("reasoning_model"),
+        reasoning_effort=search_cfg.get("reasoning_effort", "low"),
+        reasoning_api_base=search_cfg.get("reasoning_api_base"),
     )
 
 
-def iter_prepared_objects(args: argparse.Namespace) -> Iterator[Tuple[str, Dict[str, Any]]]:
+def iter_prepared_objects(
+    args: argparse.Namespace, extra_property_names: Iterable[str]
+) -> Iterator[Tuple[str, Dict[str, Any]]]:
     """Yield (case_id, properties) tuples ready for ingestion."""
-    metadata_fields = args.metadata_fields or []
+    extra_property_set = {name for name in extra_property_names if name}
+    metadata_fields = [field for field in (args.metadata_fields or []) if field not in extra_property_set]
     records = iter_dataset_records(args.input, args.input_format, args.data_key)
 
     processed = 0
@@ -525,12 +627,17 @@ def iter_prepared_objects(args: argparse.Namespace) -> Iterator[Tuple[str, Dict[
             "case_id": case_id,
             "body": text_value,
         }
+        properties["source_file"] = args.input.name
         if title_value:
             properties["title"] = title_value
 
         metadata_json = format_metadata(metadata)
         if metadata_json:
             properties["metadata"] = metadata_json
+
+        for field_name in extra_property_set:
+            if field_name in record and record[field_name] not in (None, ""):
+                properties[field_name] = str(record[field_name]).strip()
 
         yield case_id, properties
         processed += 1
@@ -551,11 +658,18 @@ def ingest_cases(
         except Exception as exc:  # pragma: no cover - defensive, depends on client version
             raise SystemExit(f"Failed to access collection '{collection_options.name}': {exc}") from exc
 
+        extra_property_names = [
+            prop.get("name")
+            for prop in collection_options.extra_properties
+            if isinstance(prop, dict) and prop.get("name")
+        ]
         preview_cap = args.preview if args.preview is not None else 3
         total_objects = 0
 
         if args.dry_run:
-            for idx, (case_id, properties) in enumerate(iter_prepared_objects(args), start=1):
+            for idx, (case_id, properties) in enumerate(
+                iter_prepared_objects(args, extra_property_names), start=1
+            ):
                 total_objects += 1
                 if idx <= preview_cap:
                     logging.info(
@@ -569,7 +683,7 @@ def ingest_cases(
 
         log_every = args.log_every
         with collection.batch.dynamic() as batch:
-            for case_id, properties in iter_prepared_objects(args):
+            for case_id, properties in iter_prepared_objects(args, extra_property_names):
                 batch.add_object(properties=properties)
                 total_objects += 1
                 if total_objects == 1 or total_objects % log_every == 0:
@@ -588,13 +702,7 @@ def ingest_cases(
             pass
 
 
-    try:
-        client.close()
-    except AttributeError:  # Legacy client does not implement close()
-        pass
-
-
-def resolve_query_text(args: argparse.Namespace) -> str:
+def resolve_query_text(args: argparse.Namespace, connection: ConnectionOptions) -> str:
     """Resolve the text query used for similarity search."""
     if args.query:
         query_text = args.query.strip()
@@ -605,10 +713,48 @@ def resolve_query_text(args: argparse.Namespace) -> str:
         path = Path(args.query_file)
         if not path.exists():
             raise SystemExit(f"Query file '{path}' does not exist.")
-        content = path.read_text(encoding="utf-8").strip()
+        if path.suffix.lower() == ".pdf":
+            try:
+                from pypdf import PdfReader  # type: ignore[import]
+            except ImportError:
+                try:
+                    from PyPDF2 import PdfReader  # type: ignore[import]
+                except ImportError as exc:  # pragma: no cover - optional dependency
+                    raise SystemExit(
+                        "PDF query support requires the 'pypdf' or 'PyPDF2' package. "
+                        "Install it (e.g. pip install pypdf)."
+                    ) from exc
+
+            try:
+                reader = PdfReader(str(path))
+            except Exception as exc:  # pragma: no cover - depends on PDF structure
+                raise SystemExit(f"Failed to open PDF query file '{path}': {exc}") from exc
+
+            extracted_pages: List[str] = []
+            for page_index, page in enumerate(getattr(reader, "pages", []), start=1):
+                try:
+                    page_text = page.extract_text() or ""
+                except Exception as exc:  # pragma: no cover - extraction varies by PDF
+                    logging.warning("Skipping page %s in '%s': %s", page_index, path, exc)
+                    continue
+                cleaned = page_text.strip()
+                if cleaned:
+                    extracted_pages.append(cleaned)
+
+            content = "\n\n".join(extracted_pages).strip()
+            if not content:
+                raise SystemExit(f"PDF query file '{path}' contained no extractable text.")
+        else:
+            content = path.read_text(encoding="utf-8").strip()
         if not content:
             raise SystemExit(f"Query file '{path}' is empty.")
-        return content
+        return derive_query_via_reasoning(
+            content,
+            connection=connection,
+            model=args.reasoning_model,
+            effort=args.reasoning_effort,
+            api_base=args.reasoning_api_base,
+        )
 
     if args.case_json:
         path = Path(args.case_json)
@@ -641,17 +787,24 @@ def search_cases(connection: ConnectionOptions, collection_name: str, args: argp
         except Exception as exc:  # pragma: no cover - depends on client version
             raise SystemExit(f"Failed to access collection '{collection_name}': {exc}") from exc
 
-        query_text = resolve_query_text(args)
+        query_text = resolve_query_text(args, connection)
+        logging.info("Search query text: %s", query_text)
         logging.info("Running similarity search (k=%s).", args.top_k)
 
         metadata_query = None
         if args.include_distance and MetadataQuery is not None:
             metadata_query = MetadataQuery(distance=True, certainty=True)  # type: ignore[call-arg]
 
+        extra_property_names = getattr(args, "extra_property_names", [])
+        return_properties = ["case_id", "title", "body", "metadata", "source_file"]
+        for name in extra_property_names:
+            if name and name not in return_properties:
+                return_properties.append(name)
+
         response = collection.query.near_text(
             query=query_text,
             limit=args.top_k,
-            return_properties=["case_id", "title", "body", "metadata"],
+            return_properties=return_properties,
             return_metadata=metadata_query,
         )
 
@@ -666,7 +819,6 @@ def search_cases(connection: ConnectionOptions, collection_name: str, args: argp
             case_id = properties.get("case_id") or obj.uuid
             title = properties.get("title")
             body = properties.get("body", "")
-            snippet = textwrap.shorten(body, width=args.snippet_width, placeholder="…") if body else ""
             distance = getattr(metadata, "distance", None) if metadata else None
             certainty = getattr(metadata, "certainty", None) if metadata else None
 
@@ -682,8 +834,16 @@ def search_cases(connection: ConnectionOptions, collection_name: str, args: argp
 
             if title:
                 print(f"   title={title}")
-            if snippet:
-                print(f"   snippet={snippet}")
+            if body:
+                print(f"   body={body}")
+            source_file = properties.get("source_file")
+            if source_file:
+                print(f"   source_file={source_file}")
+
+            for field_name in extra_property_names:
+                field_value = properties.get(field_name)
+                if field_value:
+                    print(f"   {field_name}={field_value}")
 
             if args.show_metadata and properties.get("metadata"):
                 try:
@@ -759,6 +919,11 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     connection = build_connection_options(config)
     collection_opts = build_collection_options(config)
+    extra_property_names = [
+        prop.get("name")
+        for prop in collection_opts.extra_properties
+        if isinstance(prop, dict) and prop.get("name")
+    ]
 
     for op in operations:
         logging.info("Starting operation '%s'.", op)
@@ -768,7 +933,9 @@ def main(argv: Optional[List[str]] = None) -> None:
             ingest_args = build_ingest_namespace(config)
             ingest_cases(connection, collection_opts, ingest_args)
         elif op == "search":
-            collection_name, search_args = build_search_namespace(config, collection_opts.name)
+            collection_name, search_args = build_search_namespace(
+                config, collection_opts.name, extra_property_names
+            )
             search_cases(connection, collection_name, search_args)
         else:
             raise SystemExit(f"Unsupported operation '{op}'. Allowed values: create-collection, ingest, search.")

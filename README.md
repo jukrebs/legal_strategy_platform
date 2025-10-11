@@ -47,6 +47,7 @@ Use the `backend/weaviate_cases.py` utility to create a Weaviate collection, ing
 1. **Configure credentials and settings**
    - Edit `.env` with your Weaviate (and optional OpenAI) keys, then load it: `source .env`.
    - Update `config.yaml` with your desired operations (`operations:` list), dataset location, schema fields, and query parameters.
+   - The default config targets `data/filtered_reckless_driving_cases.json`, embeds each case’s `syllabus`, and promotes `absolute_url` and `judge` as top-level properties on every stored object.
 
 2. **Run the workflow**
    ```bash
