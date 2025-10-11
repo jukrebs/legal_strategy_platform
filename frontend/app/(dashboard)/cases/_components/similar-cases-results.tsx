@@ -53,19 +53,28 @@ export function SimilarCasesResults() {
       const storedCases = localStorage.getItem('similarCases');
       if (storedCases) {
         const parsedCases = JSON.parse(storedCases);
+        console.log('Loaded cases from localStorage:', parsedCases);
+        
         // Map Weaviate response format to CaseData format
-        const formattedCases = parsedCases.map((c: any) => ({
-          id: c.case_id || c.id,
-          caseName: c.title || c.caseName || 'Untitled Case',
-          date: c.metadata?.dateFiled || c.date || 'Unknown Date',
-          judge: c.judge || 'Unknown Judge',
-          syllabus: c.body || c.syllabus || 'No description available',
-          court: c.metadata?.court || c.court || 'Unknown Court',
-          url: c.absolute_url || c.url || '',
-          included: true,
-          distance: c.distance,
-          certainty: c.certainty
-        }));
+        const formattedCases = parsedCases.map((c: any) => {
+          const caseUrl = c.absolute_url || c.url || '';
+          console.log('Case URL for', c.title || c.caseName, ':', caseUrl);
+          
+          return {
+            id: c.case_id || c.id,
+            caseName: c.title || c.caseName || 'Untitled Case',
+            date: c.metadata?.dateFiled || c.date || 'Unknown Date',
+            judge: c.judge || 'Unknown Judge',
+            syllabus: c.body || c.syllabus || 'No description available',
+            court: c.metadata?.court || c.court || 'Unknown Court',
+            url: caseUrl,
+            included: true,
+            distance: c.distance,
+            certainty: c.certainty
+          };
+        });
+        
+        console.log('Formatted cases:', formattedCases);
         setCases(formattedCases);
         setIsLoading(false);
         return;
@@ -77,7 +86,13 @@ export function SimilarCasesResults() {
       
       if (data.success) {
         setCases(data.cases.map((c: any) => ({
-          ...c,
+          id: c.id,
+          caseName: c.caseName,
+          date: c.date,
+          judge: c.judge,
+          syllabus: c.syllabus,
+          court: c.court,
+          url: c.url,
           included: true
         })));
       } else {
@@ -238,6 +253,12 @@ export function SimilarCasesResults() {
                         <User className="h-4 w-4 mr-1" />
                         Judge {case_?.judge}
                       </div>
+                      {case_?.certainty !== undefined && (
+                        <div className="flex items-center text-sm font-medium text-green-700 bg-green-50 px-2 py-1 rounded">
+                          <Target className="h-4 w-4 mr-1" />
+                          Match: {(case_.certainty * 100).toFixed(1)}%
+                        </div>
+                      )}
                     </div>
                   </div>
                   {!case_.included && (
@@ -269,7 +290,34 @@ export function SimilarCasesResults() {
                     variant="outline" 
                     size="sm"
                     className="flex items-center space-x-2"
-                    onClick={() => window.open(`https://www.courtlistener.com${case_?.url}`, '_blank')}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      
+                      console.log('Button clicked for case:', case_?.caseName);
+                      console.log('Case URL:', case_?.url);
+                      
+                      const caseUrl = case_?.url;
+                      
+                      if (!caseUrl || caseUrl === '') {
+                        console.error('No URL available for this case');
+                        alert('No URL available for this case');
+                        return;
+                      }
+                      
+                      // Construct the full URL
+                      let fullUrl: string;
+                      if (caseUrl.startsWith('http://') || caseUrl.startsWith('https://')) {
+                        fullUrl = caseUrl;
+                      } else {
+                        // Remove leading slash if present to avoid double slashes
+                        const cleanPath = caseUrl.startsWith('/') ? caseUrl : `/${caseUrl}`;
+                        fullUrl = `https://www.courtlistener.com${cleanPath}`;
+                      }
+                      
+                      console.log('Opening URL:', fullUrl);
+                      window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                    }}
                   >
                     <BookOpen className="h-4 w-4" />
                     <span>View Full Case</span>
