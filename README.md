@@ -26,10 +26,8 @@ legal_strategy_platform/
    ```
 
 2. **Install dependencies**
-   
-   Due to peer dependency conflicts between TypeScript ESLint packages, use the `--legacy-peer-deps` flag:
    ```bash
-   npm install --legacy-peer-deps
+   npm install
    ```
 
 3. **Set up environment variables** (optional)
@@ -73,13 +71,6 @@ For detailed documentation about the frontend features, components, and architec
 - **UI Components**: Radix UI primitives
 
 ## 🐛 Troubleshooting
-
-### Installation Issues
-
-If you encounter dependency conflicts during installation:
-```bash
-npm install --legacy-peer-deps
-```
 
 ### Port Already in Use
 

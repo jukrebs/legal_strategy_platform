@@ -72,10 +72,8 @@ A comprehensive AI-powered legal strategy platform built with Next.js that helps
    ```
 
 3. **Install dependencies**
-   
-   Due to peer dependency conflicts, use the legacy peer deps flag:
    ```bash
-   npm install --legacy-peer-deps
+   npm install
    ```
 
 4. **Set up environment variables**
