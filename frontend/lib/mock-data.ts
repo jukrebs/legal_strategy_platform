@@ -7,7 +7,7 @@ export const demoCase: CaseIntake = {
   caseType: 'Consumer false advertising (NY GBL §349/§350)',
   posture: 'Motion to Dismiss (MTD)',
   opposingCounsel: 'Miller & Associates LLP',
-  facts: `"Vanilla" or "Whole Grain" front-label claim allegedly misleads consumers. Back-panel clarifies ingredients and nutritional information. Plaintiff alleges reasonable consumer would be misled by front-label prominence despite back-panel disclosures. Class action seeks damages under NY GBL §349/§350 for deceptive business practices.`,
+  facts: ``,
   preferences: {
     riskTolerance: 'moderate',
     briefStyle: 'detailed',

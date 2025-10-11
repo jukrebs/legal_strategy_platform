@@ -29,6 +29,9 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import requests
 import yaml
+from dotenv import load_dotenv
+load_dotenv()
+
 
 try:
     import weaviate
@@ -81,11 +84,10 @@ def build_connection_options(config: Dict[str, Any]) -> ConnectionOptions:
     if not url:
         raise SystemExit("Weaviate URL missing. Set it in config under weaviate.url or via WEAVIATE_URL.")
 
-    api_key = cfg.get("api_key")
-    if api_key in ("", None):
-        api_key = os.environ.get("WEAVIATE_API_KEY")
 
-    openai_api_key = cfg.get("openai_api_key")
+    api_key = os.getenv("WEAVIATE_API_KEY")
+
+    openai_api_key = os.getenv("OPENAI_API_KEY")
     if openai_api_key in ("", None):
         # Accept both common env var names
         openai_api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENAI_APIKEY")
@@ -502,11 +504,7 @@ def derive_query_via_reasoning(
     import os
     from openai import OpenAI  # type: ignore[import]
 
-    api_key = (
-        connection.openai_api_key
-        or os.environ.get("OPENAI_API_KEY")
-        or os.environ.get("OPENAI_APIKEY")
-    )
+    api_key=os.getenv('OPENAI_API_KEY')
 
     base_url = (api_base or os.environ.get("OPENAI_API_BASE") or "https://api.openai.com/v1").rstrip("/")
     model_name = (model or "gpt-5").strip().replace(" ", "-").lower()

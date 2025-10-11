@@ -69,7 +69,14 @@ export function CaseIntakeForm() {
 
   const handleFileUpload = (files: FileList | null) => {
     if (files) {
-      setUploadedFiles(prev => [...prev, ...Array.from(files)]);
+      // Filter to only accept PDF files
+      const pdfFiles = Array.from(files).filter(file => 
+        file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+      );
+      if (pdfFiles.length !== files.length) {
+        alert('Only PDF files are accepted. Non-PDF files have been filtered out.');
+      }
+      setUploadedFiles(prev => [...prev, ...pdfFiles]);
     }
   };
 
@@ -97,14 +104,54 @@ export function CaseIntakeForm() {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Store case data in localStorage for demo purposes
-    localStorage.setItem('legalCase', JSON.stringify(formData));
-    
-    // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setIsSubmitting(false);
-    router.push('/cases');
+    try {
+      // If PDFs are uploaded, send them to the backend for processing
+      if (uploadedFiles.length > 0) {
+        const formDataToSend = new FormData();
+        uploadedFiles.forEach(file => {
+          formDataToSend.append('files', file);
+        });
+        
+        const response = await fetch('http://localhost:5000/api/upload-case', {
+          method: 'POST',
+          body: formDataToSend,
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Store the similar cases in localStorage
+          localStorage.setItem('similarCases', JSON.stringify(result.cases));
+          localStorage.setItem('extractedText', result.extracted_text || '');
+          localStorage.setItem('generatedQuery', result.query || '');
+          
+          // Store case data in localStorage
+          const caseData = {
+            ...formData,
+            extractedText: result.extracted_text,
+            uploadedFileNames: uploadedFiles.map(f => f.name)
+          };
+          localStorage.setItem('legalCase', JSON.stringify(caseData));
+          
+          setIsSubmitting(false);
+          router.push('/cases');
+        } else {
+          console.error('Error from backend:', result.error);
+          alert(`Error: ${result.error}`);
+          setIsSubmitting(false);
+        }
+      } else {
+        // No PDFs uploaded, use mock data flow
+        localStorage.setItem('legalCase', JSON.stringify(formData));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setIsSubmitting(false);
+        router.push('/cases');
+      }
+    } catch (error) {
+      console.error('Error uploading case:', error);
+      alert('An error occurred while processing your case. Please try again.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -255,11 +302,15 @@ export function CaseIntakeForm() {
                   <div className="text-center">
                     <Upload className="mx-auto h-12 w-12 text-gray-400" />
                     <p className="mt-2 text-sm text-gray-600">
-                      Drag and drop files here, or click to browse
+                      Drag and drop PDF files here, or click to browse
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Upload case documents to automatically find similar cases
                     </p>
                     <input
                       type="file"
                       multiple
+                      accept=".pdf,application/pdf"
                       className="hidden"
                       id="file-upload"
                       onChange={(e) => handleFileUpload(e.target.files)}

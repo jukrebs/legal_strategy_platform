@@ -17,7 +17,8 @@ import {
   BookOpen,
   Filter,
   XCircle,
-  User
+  User,
+  Target
 } from 'lucide-react';
 
 interface CaseData {
@@ -29,6 +30,8 @@ interface CaseData {
   court: string;
   url: string;
   included: boolean;
+  distance?: number;
+  certainty?: number;
 }
 
 export function SimilarCasesResults() {
@@ -45,6 +48,30 @@ export function SimilarCasesResults() {
   const fetchCases = async () => {
     try {
       setIsLoading(true);
+      
+      // First try to load from localStorage (from PDF upload)
+      const storedCases = localStorage.getItem('similarCases');
+      if (storedCases) {
+        const parsedCases = JSON.parse(storedCases);
+        // Map Weaviate response format to CaseData format
+        const formattedCases = parsedCases.map((c: any) => ({
+          id: c.case_id || c.id,
+          caseName: c.title || c.caseName || 'Untitled Case',
+          date: c.metadata?.dateFiled || c.date || 'Unknown Date',
+          judge: c.judge || 'Unknown Judge',
+          syllabus: c.body || c.syllabus || 'No description available',
+          court: c.metadata?.court || c.court || 'Unknown Court',
+          url: c.absolute_url || c.url || '',
+          included: true,
+          distance: c.distance,
+          certainty: c.certainty
+        }));
+        setCases(formattedCases);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Fall back to API call if no localStorage data
       const response = await fetch('http://localhost:5000/api/similar-cases');
       const data = await response.json();
       

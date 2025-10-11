@@ -206,6 +206,163 @@ def generate_strategies():
             'error': str(e)
         }), 500
 
+@app.route('/api/upload-case', methods=['POST'])
+def upload_case():
+    """Upload PDF(s), extract text, and query Weaviate for similar cases"""
+    try:
+        # Check if files were uploaded
+        if 'files' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No files provided'
+            }), 400
+        
+        files = request.files.getlist('files')
+        if not files or len(files) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No files provided'
+            }), 400
+        
+        # Import PDF extraction library
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            try:
+                from PyPDF2 import PdfReader
+            except ImportError:
+                return jsonify({
+                    'success': False,
+                    'error': 'PDF processing library not installed'
+                }), 500
+        
+        # Extract text from all PDFs
+        extracted_text = []
+        for file in files:
+            if file.filename.lower().endswith('.pdf'):
+                try:
+                    pdf_bytes = BytesIO(file.read())
+                    reader = PdfReader(pdf_bytes)
+                    
+                    # Extract text from all pages
+                    for page in reader.pages:
+                        text = page.extract_text()
+                        if text:
+                            extracted_text.append(text.strip())
+                except Exception as e:
+                    print(f"Error extracting text from {file.filename}: {str(e)}")
+                    continue
+        
+        if not extracted_text:
+            return jsonify({
+                'success': False,
+                'error': 'No text could be extracted from the uploaded PDFs'
+            }), 400
+        
+        # Combine all extracted text
+        combined_text = "\n\n".join(extracted_text)
+        
+        # Import Weaviate search functionality
+        from weaviate_cases import (
+            build_connection_options,
+            connect_weaviate_client,
+            load_config_file,
+            derive_query_via_reasoning
+        )
+        
+        # Load config
+        config_path = Path(__file__).parent / 'config.yaml'
+        config = load_config_file(config_path)
+        
+        # Get connection options
+        connection_opts = build_connection_options(config)
+        
+        # Generate query using reasoning
+        query_text = derive_query_via_reasoning(
+            combined_text,
+            connection=connection_opts,
+            model=config.get('search', {}).get('reasoning_model'),
+            effort=config.get('search', {}).get('reasoning_effort', 'low'),
+            api_base=config.get('search', {}).get('reasoning_api_base')
+        )
+        
+        print(f"Generated query: {query_text}")
+        
+        # Connect to Weaviate and search
+        client = connect_weaviate_client(connection_opts)
+        try:
+            collection_name = config.get('collection', {}).get('name', 'RecklessDisorderlyMock')
+            collection = client.collections.get(collection_name)
+            
+            # Import MetadataQuery
+            from weaviate.classes.query import MetadataQuery
+            
+            # Perform search with top_k=5
+            response = collection.query.near_text(
+                query=query_text,
+                limit=5,
+                return_properties=["case_id", "title", "body", "metadata", "source_file", "absolute_url", "judge"],
+                return_metadata=MetadataQuery(distance=True, certainty=True)
+            )
+            
+            if not response.objects:
+                return jsonify({
+                    'success': True,
+                    'cases': [],
+                    'extracted_text': combined_text[:500],  # First 500 chars for reference
+                    'query': query_text
+                })
+            
+            # Format results
+            results = []
+            for rank, obj in enumerate(response.objects, start=1):
+                properties = obj.properties or {}
+                metadata_obj = getattr(obj, "metadata", None)
+                
+                case_data = {
+                    'rank': rank,
+                    'case_id': str(properties.get('case_id', obj.uuid)),
+                    'uuid': str(obj.uuid) if obj.uuid else None,
+                    'title': properties.get('title', ''),
+                    'body': properties.get('body', ''),
+                    'source_file': properties.get('source_file', ''),
+                    'distance': float(metadata_obj.distance) if metadata_obj and hasattr(metadata_obj, 'distance') else None,
+                    'certainty': float(metadata_obj.certainty) if metadata_obj and hasattr(metadata_obj, 'certainty') else None,
+                    'absolute_url': properties.get('absolute_url', ''),
+                    'judge': properties.get('judge', '')
+                }
+                
+                # Parse metadata JSON if present
+                if properties.get('metadata'):
+                    try:
+                        case_data['metadata'] = json.loads(properties['metadata'])
+                    except json.JSONDecodeError:
+                        case_data['metadata'] = properties['metadata']
+                
+                results.append(case_data)
+            
+            return jsonify({
+                'success': True,
+                'cases': results,
+                'extracted_text': combined_text[:500],  # First 500 chars for reference
+                'query': query_text
+            })
+            
+        finally:
+            try:
+                client.close()
+            except AttributeError:
+                pass
+                
+    except Exception as e:
+        print(f"Error in upload_case: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
