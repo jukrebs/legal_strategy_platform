@@ -63,23 +63,30 @@ A comprehensive AI-powered legal strategy platform built with Next.js that helps
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd legal_strategy_platform/nextjs_space
+   cd legal_strategy_platform
    ```
 
-2. **Install dependencies**
+2. **Navigate to the frontend directory**
    ```bash
-   npm install
+   cd frontend
    ```
 
-3. **Set up environment variables**
+3. **Install dependencies**
    
-   Create a `.env` file in the root directory:
+   Due to peer dependency conflicts, use the legacy peer deps flag:
+   ```bash
+   npm install --legacy-peer-deps
+   ```
+
+4. **Set up environment variables**
+   
+   Create a `.env` file in the frontend directory:
    ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/legal_strategy"
    NEXT_PUBLIC_APP_URL="http://localhost:3000"
    ```
 
-4. **Set up the database**
+5. **Set up the database** (if using database features)
    ```bash
    # Generate Prisma client
    npx prisma generate
@@ -91,12 +98,14 @@ A comprehensive AI-powered legal strategy platform built with Next.js that helps
    npm run seed
    ```
 
-5. **Run the development server**
+6. **Run the development server**
    ```bash
    npm run dev
    ```
+   
+   The server will start at [http://localhost:3000](http://localhost:3000)
 
-6. **Open your browser**
+7. **Open your browser**
    
    Navigate to [http://localhost:3000](http://localhost:3000)
 
