@@ -778,7 +778,9 @@ def resolve_query_text(args: argparse.Namespace, connection: ConnectionOptions) 
     raise SystemExit("A query source is required. Provide --query, --query-file, or --case-json.")
 
 
-def search_cases(connection: ConnectionOptions, collection_name: str, args: argparse.Namespace) -> None:
+def search_cases(
+    connection: ConnectionOptions, collection_name: str, args: argparse.Namespace
+) -> List[Dict[str, Any]]:
     """Perform similarity search against the stored embeddings."""
     client = connect_weaviate_client(connection)
     try:
@@ -810,8 +812,10 @@ def search_cases(connection: ConnectionOptions, collection_name: str, args: argp
 
         if not response.objects:
             logging.warning("No results returned.")
-            return
+            print("[]")
+            return []
 
+        results: List[Dict[str, Any]] = []
         for rank, obj in enumerate(response.objects, start=1):
             properties = obj.properties or {}
             metadata = getattr(obj, "metadata", None)
@@ -822,36 +826,41 @@ def search_cases(connection: ConnectionOptions, collection_name: str, args: argp
             distance = getattr(metadata, "distance", None) if metadata else None
             certainty = getattr(metadata, "certainty", None) if metadata else None
 
-            print(f"{rank}. case_id={case_id}")
-            if distance is not None:
-                print(f"   distance={distance:.4f}", end="")
-                if certainty is not None:
-                    print(f" | certainty={certainty:.4f}")
-                else:
-                    print()
-            elif certainty is not None:
-                print(f"   certainty={certainty:.4f}")
-
+            entry: Dict[str, Any] = {
+                "rank": rank,
+                "case_id": str(case_id),
+            }
+            if obj.uuid:
+                entry["uuid"] = str(obj.uuid)
             if title:
-                print(f"   title={title}")
+                entry["title"] = title
             if body:
-                print(f"   body={body}")
+                entry["body"] = body
             source_file = properties.get("source_file")
             if source_file:
-                print(f"   source_file={source_file}")
-
+                entry["source_file"] = source_file
+            if distance is not None:
+                entry["distance"] = float(distance)
+            if certainty is not None:
+                entry["certainty"] = float(certainty)
             for field_name in extra_property_names:
                 field_value = properties.get(field_name)
                 if field_value:
-                    print(f"   {field_name}={field_value}")
-
+                    if isinstance(field_value, (list, dict)):
+                        entry[field_name] = field_value
+                    elif isinstance(field_value, (str, int, float, bool)):
+                        entry[field_name] = field_value
+                    else:
+                        entry[field_name] = str(field_value)
             if args.show_metadata and properties.get("metadata"):
                 try:
-                    metadata_obj = json.loads(properties["metadata"])
+                    entry["metadata"] = json.loads(properties["metadata"])
                 except json.JSONDecodeError:
-                    metadata_obj = properties["metadata"]
-                print(f"   metadata={metadata_obj}")
-            print()
+                    entry["metadata"] = properties["metadata"]
+            results.append(entry)
+
+        print(json.dumps(results, indent=2))
+        return results
     finally:
         try:
             client.close()
