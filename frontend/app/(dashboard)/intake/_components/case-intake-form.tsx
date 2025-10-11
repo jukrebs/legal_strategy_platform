@@ -253,7 +253,7 @@ export function CaseIntakeForm() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="stateLawyer" className="text-sm text-gray-600">State Lawyer</Label>
+                    <Label htmlFor="stateLawyer" className="text-sm text-gray-600">State Attorney</Label>
                     <Select
                       value={selectedLawyer}
                       onValueChange={(value) => {

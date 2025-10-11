@@ -3,7 +3,7 @@ import { CaseIntake, SimilarCase, Strategy, JudgeProfile, OpposingCounselProfile
 
 export const demoCase: CaseIntake = {
   jurisdiction: 'EDNY/SDNY',
-  judge: 'Judge Sarah Martinez',
+  judge: 'Hon. Sarah Mitchell',
   caseType: 'Consumer false advertising (NY GBL §349/§350)',
   posture: 'Motion to Dismiss (MTD)',
   opposingCounsel: 'Miller & Associates LLP',
@@ -213,7 +213,7 @@ export const mockStrategies: Strategy[] = [
 ];
 
 export const mockJudgeProfile: JudgeProfile = {
-  name: 'Judge Sarah Martinez',
+  name: 'Hon. Sarah Mitchell',
   characteristics: {
     pleadingStrictness: 6,
     precedentWeight: 8,

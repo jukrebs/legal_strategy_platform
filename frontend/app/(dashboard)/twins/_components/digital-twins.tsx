@@ -57,7 +57,7 @@ const judgeCharacterData = {
 const opposingPartyData = {
   ...mockOpposingProfile,
   name: 'State of New York - AG Office',
-  attorney: 'Jennifer Morrison, AAG',
+  attorney: 'James Anderson',
   emotionalProfile: {
     aggressiveness: 85,
     negotiationWillingness: 30,
