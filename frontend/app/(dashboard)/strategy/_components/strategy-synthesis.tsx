@@ -1,33 +1,86 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProgressHeader } from '@/components/layout/progress-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { mockStrategies, mockSimilarCases } from '@/lib/mock-data';
-import { Strategy, SimilarCase } from '@/lib/types';
 import { 
   CheckCircle, 
   AlertTriangle, 
   BookOpen, 
   Quote,
-  Scale,
-  Calendar
+  Loader2
 } from 'lucide-react';
+
+interface StrategyData {
+  id: string;
+  title: string;
+  advantages: string[];
+  considerations: string[];
+  riskFlags: string[];
+  supportingPrecedents: {
+    caseName: string;
+    application: string;
+  }[];
+  included: boolean;
+}
 
 export function StrategySynthesis() {
   const router = useRouter();
-  const [strategies, setStrategies] = useState<(Strategy & { included: boolean })[]>(
-    mockStrategies.map(s => ({ ...s, included: true }))
-  );
-  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null); // null by default
-  const [selectedCase, setSelectedCase] = useState<SimilarCase | null>(null);
-  const [showCaseDialog, setShowCaseDialog] = useState(false);
+  const [strategies, setStrategies] = useState<StrategyData[]>([]);
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchStrategies();
+  }, []);
+
+  const fetchStrategies = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Get selected cases from localStorage
+      const selectedCasesJson = localStorage.getItem('selectedCases');
+      if (!selectedCasesJson) {
+        setError('No cases selected. Please select cases first.');
+        setIsLoading(false);
+        return;
+      }
+
+      const selectedCases = JSON.parse(selectedCasesJson);
+      
+      // Call backend to generate strategies
+      const response = await fetch('http://localhost:5000/api/generate-strategies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ cases: selectedCases }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setStrategies(data.strategies.map((s: any) => ({
+          ...s,
+          included: true
+        })));
+      } else {
+        setError(data.error || 'Failed to generate strategies');
+      }
+    } catch (err) {
+      setError('Failed to connect to backend server');
+      console.error('Error generating strategies:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const toggleStrategy = (strategyId: string) => {
     setSelectedStrategy(selectedStrategy === strategyId ? null : strategyId);
@@ -41,23 +94,51 @@ export function StrategySynthesis() {
     ));
   };
 
-  const handleCaseClick = (caseName: string) => {
-    const caseData = mockSimilarCases.find(c => c.name.includes(caseName.split(' ')[0]));
-    if (caseData) {
-      setSelectedCase(caseData);
-      setShowCaseDialog(true);
-    }
-  };
+  if (isLoading) {
+    return (
+      <>
+        <ProgressHeader 
+          currentStep={3} 
+          title="Generating Strategies" 
+          description="AI is analyzing cases and developing defense strategies"
+        />
+        <div className="max-w-6xl mx-auto p-6">
+          <div className="text-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin text-black mx-auto mb-4" />
+            <p className="text-gray-600">Analyzing precedents and formulating defense strategies...</p>
+            <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-  const getOutcomeColor = (outcome: string) => {
-    switch (outcome) {
-      case 'Granted': return 'bg-black text-white border-black';
-      case 'Denied': return 'bg-gray-600 text-white border-gray-600';
-      case 'Mixed': return 'bg-gray-400 text-white border-gray-400';
-      case 'Dismissed': return 'bg-gray-200 text-black border-gray-300';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+  if (error) {
+    return (
+      <>
+        <ProgressHeader 
+          currentStep={3} 
+          title="Error Generating Strategies" 
+          description="Failed to generate defense strategies"
+        />
+        <div className="max-w-6xl mx-auto p-6">
+          <Card className="legal-card legal-shadow">
+            <CardContent className="p-6">
+              <div className="text-center">
+                <p className="text-red-600 mb-4">{error}</p>
+                <div className="flex gap-3 justify-center">
+                  <Button onClick={fetchStrategies}>Retry</Button>
+                  <Button variant="outline" onClick={() => router.push('/cases')}>
+                    Back to Cases
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -108,10 +189,10 @@ export function StrategySynthesis() {
                       />
                       <div className="flex-1">
                         <CardTitle className="text-xl font-semibold text-gray-900 mb-1">
-                          {strategy?.name}
+                          {strategy?.title}
                         </CardTitle>
                         <CardDescription className="text-sm text-gray-600 mt-1">
-                          {strategy?.summary}
+                          Click to expand and view details
                         </CardDescription>
                       </div>
                     </div>
@@ -128,10 +209,10 @@ export function StrategySynthesis() {
                         Advantages
                       </h4>
                       <ul className="space-y-2">
-                        {strategy?.pros?.map((pro, idx) => (
+                        {strategy?.advantages?.map((advantage, idx) => (
                           <li key={idx} className="text-sm text-gray-700 flex items-start">
                             <span className="inline-block w-1.5 h-1.5 bg-black rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                              {pro}
+                              {advantage}
                             </li>
                           ))}
                         </ul>
@@ -143,10 +224,10 @@ export function StrategySynthesis() {
                         Considerations
                       </h4>
                       <ul className="space-y-2">
-                        {strategy?.cons?.map((con, idx) => (
+                        {strategy?.considerations?.map((consideration, idx) => (
                           <li key={idx} className="text-sm text-gray-700 flex items-start">
                             <span className="inline-block w-1.5 h-1.5 bg-gray-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                              {con}
+                              {consideration}
                             </li>
                           ))}
                         </ul>
@@ -177,38 +258,26 @@ export function StrategySynthesis() {
                         Supporting Precedent & Strategy Applications
                       </h4>
                       <div className="space-y-3">
-                        {strategy?.supportingCases?.map((case_, idx) => (
+                        {strategy?.supportingPrecedents?.map((precedent, idx) => (
                           <div 
                             key={idx} 
-                            className="p-4 border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCaseClick(case_?.name ?? '');
-                            }}
+                            className="p-4 border border-gray-300 rounded-lg bg-gray-50"
                           >
                             <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <div className="font-medium text-gray-900 flex items-center">
-                                  {case_?.name}
-                                  <BookOpen className="h-3 w-3 ml-2 text-black" />
-                                </div>
-                                <div className="text-sm text-gray-600 italic">{case_?.citation}</div>
+                              <div className="font-medium text-gray-900 flex items-center">
+                                {precedent?.caseName}
+                                <BookOpen className="h-3 w-3 ml-2 text-black" />
                               </div>
                             </div>
-                            <div className="text-sm text-gray-700 mb-3">{case_?.relevance}</div>
                             
                             {/* Strategy Usage Snippet */}
                             <div className="bg-white border-l-4 border-black p-3 rounded">
                               <div className="flex items-start space-x-2">
                                 <Quote className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
                                 <div>
-                                  <p className="text-xs font-medium text-black mb-1">Strategy Applied:</p>
+                                  <p className="text-xs font-medium text-black mb-1">Strategy Application:</p>
                                   <p className="text-sm text-gray-700 italic">
-                                    "{strategy?.name === 'Reasonable Consumer / Context Cures Defense'
-                                      ? 'The court held that the reasonable consumer considers all product information, including back-panel disclosures, when evaluating advertising claims.'
-                                      : strategy?.name === 'Causation Deficiency Defense'
-                                      ? 'The plaintiff failed to establish that they relied on the challenged statement or suffered economic harm as a direct result.'
-                                      : 'Federal regulations governing product labeling preempt state-law consumer protection claims, particularly where compliance with federal standards is demonstrated.'}"
+                                    "{precedent?.application}"
                                   </p>
                                 </div>
                               </div>
@@ -258,57 +327,6 @@ export function StrategySynthesis() {
           </Button>
         </div>
       </div>
-
-      {/* Case Detail Dialog */}
-      <Dialog open={showCaseDialog} onOpenChange={setShowCaseDialog}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center space-x-3">
-              <Scale className="h-5 w-5 text-black" />
-              <span>{selectedCase?.name}</span>
-            </DialogTitle>
-            <DialogDescription>
-              <div className="flex items-center space-x-4 mt-2">
-                <Badge className={getOutcomeColor(selectedCase?.outcome ?? '')}>
-                  {selectedCase?.outcome}
-                </Badge>
-                <span className="text-sm text-gray-500">{selectedCase?.court}</span>
-                <div className="flex items-center text-sm text-gray-500">
-                  <Calendar className="h-3 w-3 mr-1" />
-                  {selectedCase?.year}
-                </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedCase && (
-            <div className="space-y-4 mt-4">
-              <div className="text-sm text-gray-600 italic">
-                {selectedCase.citation}
-              </div>
-
-              <blockquote className="border-l-4 border-black pl-4 py-2 bg-gray-50 rounded-r-lg">
-                <p className="text-gray-700 italic">"{selectedCase.keyQuote}"</p>
-              </blockquote>
-
-              <div>
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Case Summary:</h4>
-                <p className="text-sm text-gray-700">{selectedCase.whySimilar}</p>
-              </div>
-
-              <div className="flex justify-end">
-                <Button 
-                  variant="outline"
-                  onClick={() => window.open(selectedCase.fullOpinionUrl, '_blank')}
-                >
-                  <BookOpen className="h-4 w-4 mr-2" />
-                  View Full Opinion
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
