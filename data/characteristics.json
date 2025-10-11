@@ -1,0 +1,74 @@
+{
+    "name": "Alan E. Glenn",
+    "court": "Tennessee Court of Criminal Appeals",
+    "pleadingStrictness": 8.5,
+    "precedentWeight": 9.0,
+    "policyReceptivity": 2.0,
+    "plaintiffFriendly": 8.0,
+    "evidenceSnippets": {
+      "pleadingStrictness": [
+        "Because the Petitioner failed to comply with the statutory requirements for seeking review of a dismissal of a motion to reopen a post-conviction petition, we dismiss the appeal.",
+        "The certified questions do not meet the requirements of Rule 37(b)(2)(A) and State v. Preston... as a result, this court is without jurisdiction to consider the appeal. Accordingly, the appeal is dismissed.",
+        "Because the notice of appeal is untimely and we find nothing that warrants the waiver of the timely notice of appeal requirement, we dismiss the appeal."
+      ],
+      "precedentWeight": [
+        "The sole issue on appeal is whether the trial court erred in its application of Tennessee Code Annotated section 40-11-201(c)...",
+        "The Appellant, Mario Johnson, appeals the trial court's summary denial of his motion to correct an illegal sentence. The State has filed a motion asking this Court to affirm pursuant to Court of Criminal Appeals Rule 20. Said motion is hereby granted.",
+        "Because the Defendant's sentence of continuous confinement is prohibited by Tennessee Code Annotated section 40-35-122, we reverse the sentence of incarceration..."
+      ],
+      "policyReceptivity": [
+        "The opinions are uniformly focused on the direct application of existing statutes, procedural rules, and established case law to the specific facts of the case, with no discussion of broader public policy implications.",
+        "Arguments are consistently evaluated against established legal standards, such as sufficiency of the evidence or ineffective assistance of counsel, rather than policy considerations."
+      ],
+      "plaintiffFriendly": [
+        "The vast majority of the provided opinions conclude with the phrase, 'Following our review, we affirm the judgment of the trial court,' indicating a strong tendency to uphold convictions against appeals.",
+        "Challenges to the sufficiency of evidence are almost universally rejected, demonstrating deference to the jury's findings and the State's case at trial.",
+        "In numerous cases, the 'sole issue' raised by the defendant is considered and rejected, affirming the State's position from the lower court."
+      ]
+    },
+    "notes": "Judge Alan E. Glenn of the Tennessee Court of Criminal Appeals demonstrates a judicial philosophy rooted in procedural formalism and a high degree of deference to trial court outcomes. His written opinions are methodical and consistently apply established Tennessee statutes and precedent. He shows very little receptivity to novel legal arguments or policy-based reasoning, preferring a strict application of existing law. Appeals are frequently dismissed on procedural grounds, such as untimely filings or failure to adhere to jurisdictional requirements for certified questions of law. In criminal matters, his record indicates a strong tendency to affirm convictions, making him a challenging judge for appellants seeking to overturn a jury verdict or trial court ruling.",
+    "emotionalProfile": {
+      "temperament": "Methodical",
+      "patience": 55,
+      "opennessToNovelArguments": 15,
+      "sympathy": {
+        "plaintiff": 80,
+        "defendant": 20
+      }
+    },
+    "strictAreas": [
+      {
+        "area": "Procedural Compliance",
+        "level": 9,
+        "note": "Frequently dismisses appeals for failure to comply with statutory and procedural rules."
+      },
+      {
+        "area": "Jurisdictional Requirements",
+        "level": 10,
+        "note": "Strictly enforces requirements for certified questions of law and timeliness of appeals."
+      },
+      {
+        "area": "Sufficiency of Evidence Review",
+        "level": 8,
+        "note": "Highly deferential to the factual findings of the jury and trial court."
+      }
+    ],
+    "lenientAreas": [
+      {
+        "area": "Clear Statutory Violations",
+        "level": 5,
+        "note": "Will reverse or remand when a sentence or action is explicitly prohibited by statute."
+      },
+      {
+        "area": "Fundamental Due Process",
+        "level": 4,
+        "note": "May remand if core due process rights, like notice for a hearing, were clearly violated."
+      }
+    ],
+    "quantitativeHistory": {
+      "motionsToDismissGranted": 8,
+      "summaryJudgmentGranted": 5,
+      "totalCases": 100,
+      "averageTrialLength": "N/A (Appellate)"
+    }
+  }
