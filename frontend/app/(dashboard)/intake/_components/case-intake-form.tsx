@@ -1,24 +1,57 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProgressHeader } from '@/components/layout/progress-header';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { demoCase } from '@/lib/mock-data';
 import { CaseIntake } from '@/lib/types';
-import { FileText, Scale, AlertCircle } from 'lucide-react';
+import { FileText, AlertCircle, Upload, X, Link as LinkIcon } from 'lucide-react';
+
+// Mock judge profiles
+const judges = [
+  { id: '1', name: 'Hon. Sarah Mitchell', court: 'EDNY/SDNY', initials: 'SM' },
+  { id: '2', name: 'Hon. Robert Chen', court: 'EDNY/SDNY', initials: 'RC' },
+  { id: '3', name: 'Hon. Maria Garcia', court: 'EDNY/SDNY', initials: 'MG' },
+  { id: '4', name: 'Hon. David Thompson', court: 'CDCA', initials: 'DT' },
+];
+
+// Mock state lawyers
+const stateLawyers = [
+  { id: '1', name: 'James Anderson', firm: 'Anderson & Associates', state: 'New York', initials: 'JA' },
+  { id: '2', name: 'Emily Rodriguez', firm: 'Rodriguez Law Group', state: 'New York', initials: 'ER' },
+  { id: '3', name: 'Michael Chen', firm: 'Chen Legal Partners', state: 'California', initials: 'MC' },
+  { id: '4', name: 'Sarah Johnson', firm: 'Johnson & Smith LLP', state: 'California', initials: 'SJ' },
+  { id: '5', name: 'David Williams', firm: 'Williams Law Firm', state: 'Florida', initials: 'DW' },
+  { id: '6', name: 'Jennifer Davis', firm: 'Davis Legal Services', state: 'Texas', initials: 'JD' },
+  { id: '7', name: 'Robert Martinez', firm: 'Martinez & Partners', state: 'Illinois', initials: 'RM' },
+  { id: '8', name: 'Lisa Thompson', firm: 'Thompson Legal Group', state: 'Pennsylvania', initials: 'LT' },
+];
+
+// Mock states
+const states = [
+  'New York', 'California', 'Florida', 'Texas', 'Illinois', 'Pennsylvania'
+];
 
 export function CaseIntakeForm() {
   const router = useRouter();
   const [formData, setFormData] = useState<CaseIntake>(demoCase);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [selectedState, setSelectedState] = useState<string>('');
+  const [selectedLawyer, setSelectedLawyer] = useState<string>('');
+  
+  // Filter lawyers by selected state
+  const filteredLawyers = selectedState 
+    ? stateLawyers.filter(lawyer => lawyer.state === selectedState)
+    : stateLawyers;
 
   const handleInputChange = (field: keyof CaseIntake, value: any) => {
     if (field === 'preferences') {
@@ -33,6 +66,32 @@ export function CaseIntakeForm() {
       }));
     }
   };
+
+  const handleFileUpload = (files: FileList | null) => {
+    if (files) {
+      setUploadedFiles(prev => [...prev, ...Array.from(files)]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(true);
+  }, []);
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(false);
+  }, []);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(false);
+    handleFileUpload(e.dataTransfer.files);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,11 +121,11 @@ export function CaseIntakeForm() {
           <Card className="legal-card legal-shadow">
             <CardHeader className="pb-4">
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <FileText className="h-6 w-6 text-blue-600" />
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <FileText className="h-6 w-6 text-black" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl">Case Information</CardTitle>
+                  <CardTitle className="text-xl text-black">Case Information</CardTitle>
                   <CardDescription>
                     Provide the core details of your legal matter
                   </CardDescription>
@@ -94,203 +153,187 @@ export function CaseIntakeForm() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="judge">Judge Name</Label>
-                  <Input
-                    id="judge"
-                    value={formData.judge}
-                    onChange={(e) => handleInputChange('judge', e.target.value)}
-                    placeholder="Enter judge name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="caseType">Case Type *</Label>
+                  <Label htmlFor="judge">Judge Profile</Label>
                   <Select 
-                    value={formData.caseType} 
-                    onValueChange={(value) => handleInputChange('caseType', value)}
+                    value={formData.judge} 
+                    onValueChange={(value) => handleInputChange('judge', value)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select case type" />
+                      <SelectValue placeholder="Select judge" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Consumer false advertising (NY GBL §349/§350)">
-                        Consumer False Advertising (NY GBL)
-                      </SelectItem>
-                      <SelectItem value="Product liability">Product Liability</SelectItem>
-                      <SelectItem value="Employment discrimination">Employment Discrimination</SelectItem>
-                      <SelectItem value="Contract dispute">Contract Dispute</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="posture">Case Posture *</Label>
-                  <Select 
-                    value={formData.posture} 
-                    onValueChange={(value) => handleInputChange('posture', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select posture" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Motion to Dismiss (MTD)">Motion to Dismiss (MTD)</SelectItem>
-                      <SelectItem value="Summary Judgment">Summary Judgment</SelectItem>
-                      <SelectItem value="Discovery Motion">Discovery Motion</SelectItem>
-                      <SelectItem value="Trial Preparation">Trial Preparation</SelectItem>
+                      {judges.map((judge) => (
+                        <SelectItem key={judge.id} value={judge.name}>
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback className="text-xs bg-gray-100 text-black">
+                                {judge.initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{judge.name}</span>
+                              <span className="text-xs text-gray-500">{judge.court}</span>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="opposingCounsel">Opposing Counsel</Label>
-                <Input
-                  id="opposingCounsel"
-                  value={formData.opposingCounsel}
-                  onChange={(e) => handleInputChange('opposingCounsel', e.target.value)}
-                  placeholder="Enter opposing counsel firm name"
-                />
+                <Label htmlFor="opposingParty">Opposing Party</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="state" className="text-sm text-gray-600">State</Label>
+                    <Select 
+                      value={selectedState} 
+                      onValueChange={(value) => {
+                        setSelectedState(value);
+                        setSelectedLawyer(''); // Reset lawyer when state changes
+                        handleInputChange('opposingCounsel', value);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {states.map((state) => (
+                          <SelectItem key={state} value={state}>{state}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="stateLawyer" className="text-sm text-gray-600">State Lawyer</Label>
+                    <Select
+                      value={selectedLawyer}
+                      onValueChange={(value) => {
+                        setSelectedLawyer(value);
+                        handleInputChange('opposingCounsel', selectedState ? `${selectedState} - ${value}` : value);
+                      }}
+                      disabled={!selectedState}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={selectedState ? "Select lawyer" : "Select state first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredLawyers.map((lawyer) => (
+                          <SelectItem key={lawyer.id} value={lawyer.name}>
+                            <div className="flex items-center space-x-3">
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className="text-xs bg-gray-100 text-black">
+                                  {lawyer.initials}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{lawyer.name}</span>
+                                <span className="text-xs text-gray-500">{lawyer.firm}</span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="facts">Case Facts *</Label>
+                <Label htmlFor="facts">Case Facts & Evidence *</Label>
+                
+                {/* File Dropzone */}
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 transition-colors ${
+                    isDragActive ? 'border-black bg-gray-50' : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                >
+                  <div className="text-center">
+                    <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                    <p className="mt-2 text-sm text-gray-600">
+                      Drag and drop files here, or click to browse
+                    </p>
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      id="file-upload"
+                      onChange={(e) => handleFileUpload(e.target.files)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => document.getElementById('file-upload')?.click()}
+                    >
+                      Select Files
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Uploaded Files */}
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-gray-700">{file.name}</span>
+                          <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Free Text Field */}
                 <Textarea
                   id="facts"
                   value={formData.facts}
                   onChange={(e) => handleInputChange('facts', e.target.value)}
                   placeholder="Describe the key facts of your case..."
                   rows={4}
-                  className="min-h-[100px]"
+                  className="min-h-[100px] mt-3"
                 />
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Preferences Section */}
-          <Card className="legal-card legal-shadow">
-            <CardHeader className="pb-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Scale className="h-6 w-6 text-purple-600" />
+              {/* Connectors Section */}
+              <div className="space-y-2">
+                <Label>Document Management Connectors</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Button type="button" variant="outline" size="sm" className="justify-start">
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    Clio
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="justify-start">
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    MyCase
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="justify-start">
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    NetDocuments
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="justify-start">
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    iManage
+                  </Button>
                 </div>
-                <div>
-                  <CardTitle className="text-xl">Strategy Preferences</CardTitle>
-                  <CardDescription>
-                    Configure how you want your strategy developed
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <Label className="text-base font-medium">Risk Tolerance</Label>
-                <RadioGroup 
-                  value={formData.preferences.riskTolerance} 
-                  onValueChange={(value) => handleInputChange('preferences', { riskTolerance: value })}
-                  className="grid grid-cols-3 gap-4"
-                >
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="conservative" id="conservative" />
-                    <Label htmlFor="conservative" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Conservative</div>
-                        <div className="text-sm text-gray-600">Lower risk, proven strategies</div>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="moderate" id="moderate" />
-                    <Label htmlFor="moderate" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Moderate</div>
-                        <div className="text-sm text-gray-600">Balanced approach</div>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="aggressive" id="aggressive" />
-                    <Label htmlFor="aggressive" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Aggressive</div>
-                        <div className="text-sm text-gray-600">Novel arguments, higher risk</div>
-                      </div>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              <div className="space-y-3">
-                <Label className="text-base font-medium">Brief Style</Label>
-                <RadioGroup 
-                  value={formData.preferences.briefStyle} 
-                  onValueChange={(value) => handleInputChange('preferences', { briefStyle: value })}
-                  className="grid grid-cols-3 gap-4"
-                >
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="concise" id="concise" />
-                    <Label htmlFor="concise" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Concise</div>
-                        <div className="text-sm text-gray-600">Brief and to the point</div>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="detailed" id="detailed" />
-                    <Label htmlFor="detailed" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Detailed</div>
-                        <div className="text-sm text-gray-600">Thorough analysis</div>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="comprehensive" id="comprehensive" />
-                    <Label htmlFor="comprehensive" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Comprehensive</div>
-                        <div className="text-sm text-gray-600">Exhaustive coverage</div>
-                      </div>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              <div className="space-y-3">
-                <Label className="text-base font-medium">Settlement Posture</Label>
-                <RadioGroup 
-                  value={formData.preferences.settlementPosture} 
-                  onValueChange={(value) => handleInputChange('preferences', { settlementPosture: value })}
-                  className="grid grid-cols-3 gap-4"
-                >
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="early" id="early" />
-                    <Label htmlFor="early" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Early Settlement</div>
-                        <div className="text-sm text-gray-600">Prefer quick resolution</div>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="mixed" id="mixed" />
-                    <Label htmlFor="mixed" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Mixed Strategy</div>
-                        <div className="text-sm text-gray-600">Flexible approach</div>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <RadioGroupItem value="trial-ready" id="trial-ready" />
-                    <Label htmlFor="trial-ready" className="cursor-pointer">
-                      <div>
-                        <div className="font-medium">Trial Ready</div>
-                        <div className="text-sm text-gray-600">Prepare for litigation</div>
-                      </div>
-                    </Label>
-                  </div>
-                </RadioGroup>
+                <p className="text-xs text-gray-500 mt-2">
+                  Connect to your document management system to import case files automatically
+                </p>
               </div>
             </CardContent>
           </Card>

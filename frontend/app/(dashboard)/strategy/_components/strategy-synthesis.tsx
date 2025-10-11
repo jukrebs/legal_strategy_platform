@@ -7,50 +7,56 @@ import { ProgressHeader } from '@/components/layout/progress-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { mockStrategies } from '@/lib/mock-data';
-import { Strategy } from '@/lib/types';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { mockStrategies, mockSimilarCases } from '@/lib/mock-data';
+import { Strategy, SimilarCase } from '@/lib/types';
 import { 
-  Target, 
   CheckCircle, 
   AlertTriangle, 
   BookOpen, 
-  Lightbulb,
-  TrendingUp,
-  Settings,
-  Zap,
-  Shield
+  Quote,
+  Scale,
+  Calendar
 } from 'lucide-react';
 
 export function StrategySynthesis() {
   const router = useRouter();
-  const [strategies, setStrategies] = useState<Strategy[]>(mockStrategies);
-  const [selectedStrategy, setSelectedStrategy] = useState<string>('strategy-1');
-  const [preferences, setPreferences] = useState({
-    prioritizePrecedent: true,
-    riskAversion: 50,
-    timeToMarket: true,
-    budgetConscious: false,
-    novelArguments: false
-  });
+  const [strategies, setStrategies] = useState<(Strategy & { included: boolean })[]>(
+    mockStrategies.map(s => ({ ...s, included: true }))
+  );
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null); // null by default
+  const [selectedCase, setSelectedCase] = useState<SimilarCase | null>(null);
+  const [showCaseDialog, setShowCaseDialog] = useState(false);
 
-  const selectedStrategyData = strategies.find(s => s?.id === selectedStrategy);
+  const toggleStrategy = (strategyId: string) => {
+    setSelectedStrategy(selectedStrategy === strategyId ? null : strategyId);
+  };
 
-  const getComplexityColor = (complexity: string) => {
-    switch (complexity) {
-      case 'Low': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'High': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+  const toggleStrategyInclusion = (strategyId: string) => {
+    setStrategies(prev => prev.map(strategy => 
+      strategy?.id === strategyId 
+        ? { ...strategy, included: !strategy.included }
+        : strategy
+    ));
+  };
+
+  const handleCaseClick = (caseName: string) => {
+    const caseData = mockSimilarCases.find(c => c.name.includes(caseName.split(' ')[0]));
+    if (caseData) {
+      setSelectedCase(caseData);
+      setShowCaseDialog(true);
     }
   };
 
-  const getConfidenceColor = (score: number) => {
-    if (score >= 75) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+  const getOutcomeColor = (outcome: string) => {
+    switch (outcome) {
+      case 'Granted': return 'bg-black text-white border-black';
+      case 'Denied': return 'bg-gray-600 text-white border-gray-600';
+      case 'Mixed': return 'bg-gray-400 text-white border-gray-400';
+      case 'Dismissed': return 'bg-gray-200 text-black border-gray-300';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
   };
 
   return (
@@ -61,285 +67,248 @@ export function StrategySynthesis() {
         description="AI-generated defense strategies tailored to your case"
       />
       
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid lg:grid-cols-4 gap-6">
-          {/* Strategy Preferences Sidebar */}
-          <div className="lg:col-span-1">
-            <Card className="legal-card legal-shadow sticky top-6">
-              <CardHeader className="pb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Settings className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">Strategy Preferences</CardTitle>
-                    <CardDescription className="text-sm">
-                      Adjust parameters to refine strategy generation
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="precedent" className="text-sm font-medium">
-                      Prioritize Precedent
-                    </Label>
-                    <Switch 
-                      id="precedent"
-                      checked={preferences.prioritizePrecedent}
-                      onCheckedChange={(checked) => 
-                        setPreferences(prev => ({...prev, prioritizePrecedent: checked}))
-                      }
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">
-                      Risk Aversion: {preferences.riskAversion}%
-                    </Label>
-                    <Slider
-                      value={[preferences.riskAversion]}
-                      onValueChange={(value) => 
-                        setPreferences(prev => ({...prev, riskAversion: value[0]}))
-                      }
-                      max={100}
-                      step={10}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="timeToMarket" className="text-sm font-medium">
-                      Quick Resolution
-                    </Label>
-                    <Switch 
-                      id="timeToMarket"
-                      checked={preferences.timeToMarket}
-                      onCheckedChange={(checked) => 
-                        setPreferences(prev => ({...prev, timeToMarket: checked}))
-                      }
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="budget" className="text-sm font-medium">
-                      Budget Conscious
-                    </Label>
-                    <Switch 
-                      id="budget"
-                      checked={preferences.budgetConscious}
-                      onCheckedChange={(checked) => 
-                        setPreferences(prev => ({...prev, budgetConscious: checked}))
-                      }
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="novel" className="text-sm font-medium">
-                      Novel Arguments
-                    </Label>
-                    <Switch 
-                      id="novel"
-                      checked={preferences.novelArguments}
-                      onCheckedChange={(checked) => 
-                        setPreferences(prev => ({...prev, novelArguments: checked}))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t">
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => {
-                      // Simulate strategy regeneration
-                      setStrategies(prev => prev.map(s => ({
-                        ...s,
-                        confidenceScore: Math.floor(Math.random() * 30) + 65
-                      })));
-                    }}
-                  >
-                    <Zap className="h-4 w-4 mr-2" />
-                    Regenerate Strategies
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+      <div className="max-w-6xl mx-auto p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Recommended Defense Strategies</h2>
+            <p className="text-gray-600">Select strategies to include in your analysis. Click to expand details.</p>
           </div>
+          <Button 
+            onClick={() => router.push('/twins')}
+            className="legal-gradient text-white"
+          >
+            Configure Digital Twins
+          </Button>
+        </div>
 
-          {/* Strategy Cards */}
-          <div className="lg:col-span-3 space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Recommended Defense Strategies</h2>
-                <p className="text-gray-600">Click on a strategy to view detailed analysis</p>
-              </div>
-              <Button 
-                onClick={() => router.push('/twins')}
-                className="legal-gradient text-white"
+        {/* Strategy Cards */}
+        <div className="space-y-4">
+          {strategies?.map((strategy, index) => {
+            const isExpanded = selectedStrategy === strategy?.id;
+            
+            return (
+              <Card 
+                key={strategy?.id}
+                className={`strategy-card transition-all duration-300 ${
+                  !strategy.included ? 'opacity-50 bg-gray-100' : 
+                  isExpanded
+                    ? 'ring-2 ring-black border-black bg-gray-50' 
+                    : 'legal-card hover:shadow-lg'
+                } legal-shadow`}
               >
-                Configure Digital Twins
-              </Button>
-            </div>
-
-            {/* Strategy Cards */}
-            <div className="space-y-4">
-              {strategies?.map((strategy, index) => (
-                <Card 
-                  key={strategy?.id}
-                  className={`strategy-card cursor-pointer transition-all duration-300 ${
-                    selectedStrategy === strategy?.id 
-                      ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50/30' 
-                      : 'legal-card hover:shadow-lg'
-                  } legal-shadow`}
-                  onClick={() => setSelectedStrategy(strategy?.id ?? '')}
-                >
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between">
+                <CardHeader className="pb-4" onClick={() => toggleStrategy(strategy?.id ?? '')}>
+                  <div className="flex items-start justify-between cursor-pointer">
+                    <div className="flex items-start space-x-3 flex-1">
+                      <Checkbox 
+                        checked={strategy.included}
+                        onCheckedChange={() => toggleStrategyInclusion(strategy?.id ?? '')}
+                        className="mt-1"
+                        onClick={(e) => e.stopPropagation()}
+                      />
                       <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <div className={`p-2 rounded-lg ${
-                            index === 0 ? 'bg-blue-100' : index === 1 ? 'bg-green-100' : 'bg-purple-100'
-                          }`}>
-                            {index === 0 ? <Shield className="h-5 w-5 text-blue-600" /> :
-                             index === 1 ? <Target className="h-5 w-5 text-green-600" /> :
-                             <Lightbulb className="h-5 w-5 text-purple-600" />}
-                          </div>
-                          <div>
-                            <CardTitle className="text-xl font-semibold text-gray-900">
-                              {strategy?.name}
-                            </CardTitle>
-                            <CardDescription className="text-sm text-gray-600 mt-1">
-                              {strategy?.summary}
-                            </CardDescription>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <Badge className={getComplexityColor(strategy?.complexity ?? '')}>
-                          {strategy?.complexity} Complexity
-                        </Badge>
-                        <div className={`text-lg font-bold ${getConfidenceColor(strategy?.confidenceScore ?? 0)}`}>
-                          {strategy?.confidenceScore}%
-                        </div>
+                        <CardTitle className="text-xl font-semibold text-gray-900 mb-1">
+                          {strategy?.name}
+                        </CardTitle>
+                        <CardDescription className="text-sm text-gray-600 mt-1">
+                          {strategy?.summary}
+                        </CardDescription>
                       </div>
                     </div>
-                  </CardHeader>
+                  </div>
+                </CardHeader>
 
-                  {selectedStrategy === strategy?.id && (
-                    <CardContent className="space-y-6">
-                      {/* Pros and Cons */}
-                      <div className="grid md:grid-cols-2 gap-6">
-                        <div>
-                          <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                            <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
-                            Advantages
-                          </h4>
-                          <ul className="space-y-2">
-                            {strategy?.pros?.map((pro, idx) => (
-                              <li key={idx} className="text-sm text-gray-700 flex items-start">
-                                <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                                {pro}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        <div>
-                          <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                            <AlertTriangle className="h-4 w-4 text-yellow-600 mr-2" />
-                            Considerations
-                          </h4>
-                          <ul className="space-y-2">
-                            {strategy?.cons?.map((con, idx) => (
-                              <li key={idx} className="text-sm text-gray-700 flex items-start">
-                                <span className="inline-block w-1.5 h-1.5 bg-yellow-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                                {con}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+                {isExpanded && (
+                  <CardContent className="space-y-6">
+                    {/* Pros and Cons */}
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                      <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                        <CheckCircle className="h-4 w-4 text-black mr-2" />
+                        Advantages
+                      </h4>
+                      <ul className="space-y-2">
+                        {strategy?.pros?.map((pro, idx) => (
+                          <li key={idx} className="text-sm text-gray-700 flex items-start">
+                            <span className="inline-block w-1.5 h-1.5 bg-black rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                              {pro}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
 
-                      {/* Required Elements */}
+                      <div>
+                      <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                        <AlertTriangle className="h-4 w-4 text-gray-600 mr-2" />
+                        Considerations
+                      </h4>
+                      <ul className="space-y-2">
+                        {strategy?.cons?.map((con, idx) => (
+                          <li key={idx} className="text-sm text-gray-700 flex items-start">
+                            <span className="inline-block w-1.5 h-1.5 bg-gray-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                              {con}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Risk Flags */}
+                    {strategy?.riskFlags && strategy?.riskFlags?.length > 0 && (
                       <div>
                         <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                          <TrendingUp className="h-4 w-4 text-blue-600 mr-2" />
-                          Required Elements
+                          <AlertTriangle className="h-4 w-4 text-gray-700 mr-2" />
+                          Risk Flags
                         </h4>
-                        <div className="grid sm:grid-cols-2 gap-2">
-                          {strategy?.requiredElements?.map((element, idx) => (
-                            <div key={idx} className="text-sm text-gray-700 p-2 bg-gray-50 rounded border">
-                              {element}
+                        <div className="space-y-2">
+                          {strategy?.riskFlags?.map((risk, idx) => (
+                            <div key={idx} className="text-sm text-gray-800 p-2 bg-gray-100 border border-gray-300 rounded">
+                              {risk}
                             </div>
                           ))}
                         </div>
                       </div>
+                    )}
 
-                      {/* Risk Flags */}
-                      {strategy?.riskFlags && strategy?.riskFlags?.length > 0 && (
-                        <div>
-                          <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                            <AlertTriangle className="h-4 w-4 text-red-600 mr-2" />
-                            Risk Flags
-                          </h4>
-                          <div className="space-y-2">
-                            {strategy?.riskFlags?.map((risk, idx) => (
-                              <div key={idx} className="text-sm text-red-700 p-2 bg-red-50 border border-red-200 rounded">
-                                {risk}
+                    {/* Supporting Cases with Snippets */}
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                        <BookOpen className="h-4 w-4 text-black mr-2" />
+                        Supporting Precedent & Strategy Applications
+                      </h4>
+                      <div className="space-y-3">
+                        {strategy?.supportingCases?.map((case_, idx) => (
+                          <div 
+                            key={idx} 
+                            className="p-4 border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCaseClick(case_?.name ?? '');
+                            }}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <div className="font-medium text-gray-900 flex items-center">
+                                  {case_?.name}
+                                  <BookOpen className="h-3 w-3 ml-2 text-black" />
+                                </div>
+                                <div className="text-sm text-gray-600 italic">{case_?.citation}</div>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Supporting Cases */}
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                          <BookOpen className="h-4 w-4 text-purple-600 mr-2" />
-                          Supporting Precedent
-                        </h4>
-                        <div className="space-y-3">
-                          {strategy?.supportingCases?.map((case_, idx) => (
-                            <div key={idx} className="p-3 border border-gray-200 rounded-lg bg-white">
-                              <div className="font-medium text-gray-900">{case_?.name}</div>
-                              <div className="text-sm text-gray-600 italic mb-1">{case_?.citation}</div>
-                              <div className="text-sm text-gray-700">{case_?.relevance}</div>
                             </div>
-                          ))}
-                        </div>
+                            <div className="text-sm text-gray-700 mb-3">{case_?.relevance}</div>
+                            
+                            {/* Strategy Usage Snippet */}
+                            <div className="bg-white border-l-4 border-black p-3 rounded">
+                              <div className="flex items-start space-x-2">
+                                <Quote className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-xs font-medium text-black mb-1">Strategy Applied:</p>
+                                  <p className="text-sm text-gray-700 italic">
+                                    "{strategy?.name === 'Reasonable Consumer / Context Cures Defense'
+                                      ? 'The court held that the reasonable consumer considers all product information, including back-panel disclosures, when evaluating advertising claims.'
+                                      : strategy?.name === 'Causation Deficiency Defense'
+                                      ? 'The plaintiff failed to establish that they relied on the challenged statement or suffered economic harm as a direct result.'
+                                      : 'Federal regulations governing product labeling preempt state-law consumer protection claims, particularly where compliance with federal standards is demonstrated.'}"
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </CardContent>
-                  )}
-                </Card>
-              ))}
-            </div>
+                    </div>
 
-            {/* Navigation */}
-            <div className="flex items-center justify-between mt-8 pt-6 border-t">
-              <Button 
-                variant="outline" 
-                onClick={() => router.push('/cases')}
-              >
-                Back to Similar Cases
-              </Button>
-              <div className="text-sm text-gray-600">
-                {selectedStrategyData ? `Selected: ${selectedStrategyData?.name}` : 'Select a strategy to continue'}
-              </div>
-              <Button 
-                onClick={() => router.push('/twins')}
-                className="legal-gradient text-white"
-                disabled={!selectedStrategy}
-              >
-                Configure Digital Twins
-              </Button>
-            </div>
+                    {/* Toggle Inclusion Button */}
+                    <div className="flex justify-end pt-4 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleStrategyInclusion(strategy?.id ?? '');
+                        }}
+                        className={strategy.included ? 'text-gray-600 hover:text-black' : 'text-black hover:text-gray-600'}
+                      >
+                        {strategy.included ? 'Remove from Analysis' : 'Include in Analysis'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between mt-8 pt-6 border-t">
+          <Button 
+            variant="outline" 
+            onClick={() => router.push('/cases')}
+          >
+            Back to Similar Cases
+          </Button>
+          <div className="text-sm text-gray-600">
+            {strategies.filter(s => s.included).length} of {strategies.length} strategies selected
           </div>
+          <Button 
+            onClick={() => router.push('/twins')}
+            className="legal-gradient text-white"
+          >
+            Configure Digital Twins
+          </Button>
         </div>
       </div>
+
+      {/* Case Detail Dialog */}
+      <Dialog open={showCaseDialog} onOpenChange={setShowCaseDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center space-x-3">
+              <Scale className="h-5 w-5 text-black" />
+              <span>{selectedCase?.name}</span>
+            </DialogTitle>
+            <DialogDescription>
+              <div className="flex items-center space-x-4 mt-2">
+                <Badge className={getOutcomeColor(selectedCase?.outcome ?? '')}>
+                  {selectedCase?.outcome}
+                </Badge>
+                <span className="text-sm text-gray-500">{selectedCase?.court}</span>
+                <div className="flex items-center text-sm text-gray-500">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  {selectedCase?.year}
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCase && (
+            <div className="space-y-4 mt-4">
+              <div className="text-sm text-gray-600 italic">
+                {selectedCase.citation}
+              </div>
+
+              <blockquote className="border-l-4 border-black pl-4 py-2 bg-gray-50 rounded-r-lg">
+                <p className="text-gray-700 italic">"{selectedCase.keyQuote}"</p>
+              </blockquote>
+
+              <div>
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Case Summary:</h4>
+                <p className="text-sm text-gray-700">{selectedCase.whySimilar}</p>
+              </div>
+
+              <div className="flex justify-end">
+                <Button 
+                  variant="outline"
+                  onClick={() => window.open(selectedCase.fullOpinionUrl, '_blank')}
+                >
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  View Full Opinion
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

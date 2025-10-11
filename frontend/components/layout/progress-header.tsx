@@ -28,7 +28,7 @@ export function ProgressHeader({ currentStep, title, description }: ProgressHead
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <h1 className="text-2xl font-bold text-black">{title}</h1>
             {description && (
               <p className="text-sm text-gray-600 mt-1">{description}</p>
             )}
@@ -45,7 +45,7 @@ export function ProgressHeader({ currentStep, title, description }: ProgressHead
                 key={step}
                 className={cn(
                   'transition-colors',
-                  index + 1 <= currentStep ? 'text-blue-600 font-medium' : 'text-gray-400'
+                  index + 1 <= currentStep ? 'text-black font-semibold' : 'text-gray-400'
                 )}
               >
                 {step}

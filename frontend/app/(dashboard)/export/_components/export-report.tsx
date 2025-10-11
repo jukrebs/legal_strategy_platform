@@ -7,36 +7,32 @@ import { ProgressHeader } from '@/components/layout/progress-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { mockStrategies, mockSimilarCases } from '@/lib/mock-data';
 import { ExportData } from '@/lib/types';
 import { 
   Download, 
   FileText, 
-  Eye,
   Copy,
   CheckCircle,
   Scale,
   BookOpen,
-  Target,
-  AlertTriangle,
-  Share2
+  AlertCircle,
+  Share2,
+  FileCheck,
+  GitBranch,
+  Quote
 } from 'lucide-react';
-// No dynamic import needed for jsPDF in client components
 
 export function ExportReport() {
   const router = useRouter();
   const [exportData, setExportData] = useState<ExportData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [customNotes, setCustomNotes] = useState('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     // Generate export data based on simulation results
     const caseData = JSON.parse(localStorage.getItem('legalCase') || '{}');
-    const recommendedStrategy = mockStrategies[0]; // Use first strategy as recommended
+    const recommendedStrategy = mockStrategies[0];
     
     const data: ExportData = {
       caseSummary: `Motion to Dismiss for Consumer False Advertising Case in ${caseData.jurisdiction || 'EDNY/SDNY'}. 
@@ -45,7 +41,7 @@ export function ExportReport() {
       
       Posture: ${caseData.posture || 'Motion to Dismiss (MTD)'}
       
-      Opposing Counsel: ${caseData.opposingCounsel || 'Miller & Associates LLP'}`,
+      Opposing Party: ${caseData.opposingCounsel || 'State Attorney General'}`,
       
       recommendedStrategy: recommendedStrategy,
       
@@ -79,7 +75,6 @@ export function ExportReport() {
     setIsGenerating(true);
     
     try {
-      // Dynamic import to avoid SSR issues
       const { jsPDF } = await import('jspdf');
       
       const doc = new jsPDF('p', 'mm', 'a4');
@@ -88,7 +83,6 @@ export function ExportReport() {
       const lineHeight = 7;
       let yPosition = 30;
 
-      // Helper function to add text with word wrapping
       const addText = (text: string, x: number, y: number, maxWidth: number, fontSize = 12) => {
         doc.setFontSize(fontSize);
         const lines = doc.splitTextToSize(text, maxWidth);
@@ -102,7 +96,7 @@ export function ExportReport() {
       doc.text('LEGAL STRATEGY MEMORANDUM', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 15;
 
-      // Case Summary Section
+      // Case Summary
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('I. CASE SUMMARY', margin, yPosition);
@@ -113,7 +107,7 @@ export function ExportReport() {
       yPosition += addText(exportData?.caseSummary || '', margin, yPosition, pageWidth - 2 * margin);
       yPosition += 10;
 
-      // Recommended Strategy Section
+      // Strategy Outline
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('II. RECOMMENDED STRATEGY', margin, yPosition);
@@ -129,14 +123,14 @@ export function ExportReport() {
       yPosition += addText(exportData?.recommendedStrategy?.summary || '', margin, yPosition, pageWidth - 2 * margin);
       yPosition += 10;
 
-      // Supporting Arguments Section
+      // Supporting Arguments
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('III. SUPPORTING ARGUMENTS', margin, yPosition);
       yPosition += 10;
 
       exportData?.supportingArguments?.forEach((arg, index) => {
-        if (yPosition > 250) { // Add new page if needed
+        if (yPosition > 250) {
           doc.addPage();
           yPosition = 30;
         }
@@ -157,7 +151,7 @@ export function ExportReport() {
         yPosition += 8;
       });
 
-      // Risk Analysis Section
+      // Risk Analysis
       if (yPosition > 220) {
         doc.addPage();
         yPosition = 30;
@@ -173,29 +167,11 @@ export function ExportReport() {
       yPosition += addText(exportData?.riskAnalysis || '', margin, yPosition, pageWidth - 2 * margin);
       yPosition += 10;
 
-      // Custom Notes Section
-      if (customNotes.trim()) {
-        if (yPosition > 220) {
-          doc.addPage();
-          yPosition = 30;
-        }
-
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('V. ADDITIONAL NOTES', margin, yPosition);
-        yPosition += 10;
-
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        yPosition += addText(customNotes, margin, yPosition, pageWidth - 2 * margin);
-      }
-
       // Footer
       const totalPages = doc.internal.pages.length - 1;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
         doc.text(
           `Generated by Legal Strategy Platform - Page ${i} of ${totalPages}`, 
           pageWidth / 2, 
@@ -204,7 +180,6 @@ export function ExportReport() {
         );
       }
 
-      // Save the PDF
       doc.save('legal-strategy-memo.pdf');
     } catch (error) {
       console.error('PDF generation error:', error);
@@ -236,8 +211,6 @@ ${exportData.supportingArguments?.map((arg, index) =>
 IV. RISK ANALYSIS
 ${exportData.riskAnalysis}
 
-${customNotes.trim() ? `V. ADDITIONAL NOTES\n${customNotes}` : ''}
-
 Generated by Legal Strategy Platform
     `.trim();
 
@@ -258,7 +231,6 @@ Generated by Legal Strategy Platform
         console.error('Error sharing:', error);
       }
     } else {
-      // Fallback to copy URL
       await navigator.clipboard.writeText(window.location.href);
       alert('URL copied to clipboard!');
     }
@@ -268,7 +240,7 @@ Generated by Legal Strategy Platform
     return (
       <div className="max-w-4xl mx-auto p-6">
         <div className="text-center py-12">
-          <div className="animate-spin h-12 w-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin h-12 w-12 border-4 border-black border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-600">Preparing your strategy report...</p>
         </div>
       </div>
@@ -292,17 +264,17 @@ Generated by Legal Strategy Platform
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <FileText className="h-6 w-6 text-blue-600" />
+                    <div className="p-2 bg-gray-100 rounded-lg">
+                      <FileText className="h-6 w-6 text-black" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">Strategy Memorandum</CardTitle>
+                      <CardTitle className="text-xl text-black">Strategy Memorandum</CardTitle>
                       <CardDescription>
                         Comprehensive legal strategy based on AI analysis
                       </CardDescription>
                     </div>
                   </div>
-                  <Badge className="bg-green-100 text-green-800 border-green-200">
+                  <Badge className="bg-black text-white border-black">
                     Ready for Export
                   </Badge>
                 </div>
@@ -332,34 +304,131 @@ Generated by Legal Strategy Platform
 
                   <h2>IV. Risk Analysis</h2>
                   <p className="mb-6">{exportData.riskAnalysis}</p>
-
-                  {customNotes.trim() && (
-                    <>
-                      <h2>V. Additional Notes</h2>
-                      <p className="mb-6">{customNotes}</p>
-                    </>
-                  )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Key Precedents */}
+            {/* Strategy Outline Explanations */}
             <Card className="legal-card legal-shadow">
               <CardHeader>
-                <CardTitle className="text-lg flex items-center">
-                  <BookOpen className="h-5 w-5 mr-2 text-purple-600" />
-                  Key Precedents Referenced
+                <CardTitle className="text-lg flex items-center text-black">
+                  <BookOpen className="h-5 w-5 mr-2 text-black" />
+                  Detailed Strategy Explanation
                 </CardTitle>
+                <CardDescription>
+                  Each argument supported by case law and evidence
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {exportData.supportingArguments?.map((arg, index) => (
+                  <div key={index} className="p-4 border border-gray-300 rounded-lg bg-gray-50">
+                    <h4 className="font-semibold text-gray-900 mb-3">{index + 1}. {arg.point}</h4>
+                    
+                    <div className="space-y-3">
+                      {/* Case Support */}
+                      <div className="bg-white border-l-4 border-black p-3 rounded">
+                        <div className="flex items-start space-x-2">
+                          <Scale className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-medium text-black mb-1">Case Support:</p>
+                            <p className="text-sm text-gray-700">
+                              <span className="font-medium italic">{arg.citations[0]}</span> establishes that {arg.analysis}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Evidence Support */}
+                      <div className="bg-white border-l-4 border-gray-600 p-3 rounded">
+                        <div className="flex items-start space-x-2">
+                          <FileCheck className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-medium text-gray-900 mb-1">Evidence Required:</p>
+                            <p className="text-sm text-gray-700">
+                              {index === 0 
+                                ? 'Product packaging, ingredient lists, and marketing materials demonstrating back-panel disclosures'
+                                : index === 1
+                                ? 'Complete product labeling showing context that cures any ambiguity'
+                                : 'Pricing analysis showing no premium charged for challenged claims'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Highlighted Snippet */}
+                      <div className="bg-gray-100 border-l-4 border-black p-3 rounded">
+                        <div className="flex items-start space-x-2">
+                          <Quote className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-medium text-black mb-1">Key Passage:</p>
+                            <p className="text-sm text-gray-700 italic">
+                              "{index === 0 
+                                ? 'A reasonable consumer does not view a product label in isolation, but rather considers the product as a whole, including all available information.'
+                                : index === 1
+                                ? 'Context provided by other parts of the label can cure any misleading impression created by isolated statements.'
+                                : 'Without evidence of a price premium, plaintiffs cannot establish they suffered economic harm from the alleged misrepresentation.'}"
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Further Actions */}
+            <Card className="legal-card legal-shadow">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center text-black">
+                  <FileCheck className="h-5 w-5 mr-2 text-black" />
+                  Further Actions Required
+                </CardTitle>
+                <CardDescription>
+                  Documents and steps needed for next phases
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {exportData.keyPrecedents?.map((case_, index) => (
-                    <div key={index} className="p-3 border border-gray-200 rounded-lg bg-gray-50">
-                      <div className="font-medium text-gray-900">{case_?.name}</div>
-                      <div className="text-sm text-gray-600 italic">{case_?.citation}</div>
-                      <div className="text-sm text-gray-700 mt-1">{case_?.whySimilar}</div>
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded border border-gray-300">
+                    <CheckCircle className="h-5 w-5 text-black flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Motion to Dismiss Brief</h4>
+                      <p className="text-sm text-gray-700">Draft and file comprehensive MTD brief incorporating strategy arguments (Due: 21 days before hearing)</p>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded border border-gray-300">
+                    <CheckCircle className="h-5 w-5 text-black flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Declaration of Counsel</h4>
+                      <p className="text-sm text-gray-700">Prepare declaration with exhibits showing product labeling and packaging materials</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded border border-gray-300">
+                    <CheckCircle className="h-5 w-5 text-black flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Oral Argument Outline</h4>
+                      <p className="text-sm text-gray-700">Create detailed outline for oral argument incorporating judge's preferences from digital twin analysis</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3 p-3 bg-gray-100 rounded border border-gray-400">
+                    <AlertCircle className="h-5 w-5 text-gray-700 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Contingency: Discovery Plan</h4>
+                      <p className="text-sm text-gray-700">If MTD is denied, prepare discovery requests focused on plaintiff's reliance and damages (to be filed within 30 days of ruling)</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3 p-3 bg-gray-100 rounded border border-gray-400">
+                    <AlertCircle className="h-5 w-5 text-gray-700 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Expert Appraisal</h4>
+                      <p className="text-sm text-gray-700">If case proceeds, retain consumer survey expert to rebut plaintiff's reliance claims</p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -371,8 +440,8 @@ Generated by Legal Strategy Platform
               {/* Export Actions */}
               <Card className="legal-card legal-shadow sticky top-6">
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <Download className="h-5 w-5 mr-2 text-green-600" />
+                  <CardTitle className="text-lg flex items-center text-black">
+                    <Download className="h-5 w-5 mr-2 text-black" />
                     Export Options
                   </CardTitle>
                 </CardHeader>
@@ -402,7 +471,7 @@ Generated by Legal Strategy Platform
                   >
                     {copied ? (
                       <div className="flex items-center space-x-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <CheckCircle className="h-4 w-4 text-black" />
                         <span>Copied!</span>
                       </div>
                     ) : (
@@ -421,64 +490,6 @@ Generated by Legal Strategy Platform
                     <Share2 className="h-4 w-4 mr-2" />
                     Share Report
                   </Button>
-                </CardContent>
-              </Card>
-
-              {/* Custom Notes */}
-              <Card className="legal-card legal-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg">Additional Notes</CardTitle>
-                  <CardDescription>
-                    Add custom notes to include in the final report
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <Label htmlFor="notes">Custom Notes</Label>
-                    <Textarea
-                      id="notes"
-                      value={customNotes}
-                      onChange={(e) => setCustomNotes(e.target.value)}
-                      placeholder="Add any additional observations, client-specific considerations, or next steps..."
-                      rows={6}
-                      className="text-sm"
-                    />
-                    <p className="text-xs text-gray-600">
-                      These notes will be included in Section V of your exported document.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Report Statistics */}
-              <Card className="legal-card legal-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <Target className="h-5 w-5 mr-2 text-blue-600" />
-                    Report Statistics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Strategies Analyzed:</span>
-                    <span className="font-medium">3</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Cases Reviewed:</span>
-                    <span className="font-medium">5</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Simulation Rounds:</span>
-                    <span className="font-medium">3</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Success Probability:</span>
-                    <span className="font-medium text-green-600">75%</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Risk Level:</span>
-                    <span className="font-medium text-yellow-600">Moderate</span>
-                  </div>
                 </CardContent>
               </Card>
             </div>

@@ -1,328 +1,366 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { ProgressHeader } from '@/components/layout/progress-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Slider } from '@/components/ui/slider';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Progress } from '@/components/ui/progress';
 import { mockJudgeProfile, mockOpposingProfile } from '@/lib/mock-data';
-import { JudgeProfile, OpposingCounselProfile } from '@/lib/types';
 import { 
-  User, 
-  Users, 
-  Settings, 
   Gavel,
   Briefcase,
   Target,
   Brain,
   Shield,
-  Zap
+  Zap,
+  TrendingUp,
+  AlertCircle,
+  Award,
+  Scale
 } from 'lucide-react';
+
+// Simulated backend data
+const judgeCharacterData = {
+  ...mockJudgeProfile,
+  emotionalProfile: {
+    temperament: 'Analytical and Reserved',
+    patience: 75,
+    opennessToNovelArguments: 45,
+    sympathy: {
+      plaintiff: 35,
+      defendant: 65
+    }
+  },
+  strictnessAreas: [
+    { area: 'Pleading Standards', level: 8, note: 'Expects detailed factual allegations' },
+    { area: 'Precedent Adherence', level: 9, note: 'Strongly follows circuit precedent' },
+    { area: 'Procedural Rules', level: 7, note: 'Moderate on procedural compliance' },
+    { area: 'Evidentiary Standards', level: 6, note: 'Relatively flexible' }
+  ],
+  lenientAreas: [
+    { area: 'Discovery Requests', level: 8, note: 'Grants broad discovery' },
+    { area: 'Amendment of Pleadings', level: 7, note: 'Often allows amendments' },
+    { area: 'Extension Motions', level: 6, note: 'Reasonable with deadlines' }
+  ],
+  statistics: {
+    motionsToDismissGranted: 42,
+    summaryJudgmentGranted: 38,
+    totalCases: 156,
+    averageTrialLength: '8.5 days'
+  }
+};
+
+const opposingPartyData = {
+  ...mockOpposingProfile,
+  name: 'State of New York - AG Office',
+  attorney: 'Jennifer Morrison, AAG',
+  emotionalProfile: {
+    aggressiveness: 85,
+    negotiationWillingness: 30,
+    bluffingTendency: 60
+  },
+  personalPreferences: {
+    communicationStyle: 'Formal and adversarial',
+    responsiveness: 'Typically responds within 3-5 business days',
+    settlementHistory: 'Rarely settles before discovery'
+  },
+  specializations: [
+    'Consumer Protection Law',
+    'False Advertising Claims',
+    'State GBL §349/350 Actions',
+    'Class Action Defense'
+  ],
+  statistics: {
+    casesWon: 34,
+    casesLost: 18,
+    settledCases: 12,
+    winRate: 65
+  },
+  tacticalTendencies: [
+    { tendency: 'Early Aggressive Discovery', frequency: 90 },
+    { tendency: 'Motion Practice Focus', frequency: 85 },
+    { tendency: 'Expert Witness Heavy', frequency: 70 },
+    { tendency: 'Settlement Negotiations', frequency: 25 }
+  ]
+};
+
+function StatBar({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-gray-700">{label}</span>
+        <span className="font-medium text-gray-900">{value}/10</span>
+      </div>
+      <Progress value={value * 10} className="h-2 bg-black" />
+    </div>
+  );
+}
 
 export function DigitalTwins() {
   const router = useRouter();
-  const [judgeProfile, setJudgeProfile] = useState<JudgeProfile>(mockJudgeProfile);
-  const [opposingProfile, setOpposingProfile] = useState<OpposingCounselProfile>(mockOpposingProfile);
-  const [userPreferences, setUserPreferences] = useState({
-    aggressiveness: 60,
-    thoroughness: 80,
-    riskTolerance: 50,
-    timeConstraints: 40
-  });
-
-  const handleJudgeCharacteristicChange = (characteristic: keyof JudgeProfile['characteristics'], value: number[]) => {
-    setJudgeProfile(prev => ({
-      ...prev,
-      characteristics: {
-        ...prev.characteristics,
-        [characteristic]: value[0]
-      }
-    }));
-  };
-
-  const handleOpposingArgumentsChange = (value: string) => {
-    setOpposingProfile(prev => ({
-      ...prev,
-      typicalArguments: value.split('\n').filter(arg => arg.trim().length > 0)
-    }));
-  };
-
-  const getSliderColor = (value: number) => {
-    if (value >= 7) return 'text-red-600';
-    if (value >= 4) return 'text-yellow-600';
-    return 'text-green-600';
-  };
-
-  const getAggressivenessColor = (score: number) => {
-    if (score >= 7) return 'bg-red-100 text-red-800 border-red-200';
-    if (score >= 4) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    return 'bg-green-100 text-green-800 border-green-200';
-  };
 
   return (
     <>
       <ProgressHeader 
         currentStep={4} 
         title="Digital Twins Configuration" 
-        description="Set up AI profiles for judge, opposing counsel, and your approach"
+        description="AI-generated profiles for judge and opposing party based on historical data"
       />
       
       <div className="max-w-7xl mx-auto p-6">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Judge Profile */}
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-black">Character Profiles</h2>
+          <p className="text-gray-600">
+            These profiles are generated from historical case data, rulings, and behavioral patterns
+          </p>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Judge Profile Card */}
           <Card className="legal-card legal-shadow">
-            <CardHeader className="pb-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Gavel className="h-6 w-6 text-purple-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">Judge Profile</CardTitle>
-                  <CardDescription>
-                    {judgeProfile?.name}
+            <CardHeader className="pb-4 bg-gradient-to-r from-gray-50 to-gray-100">
+              <div className="flex items-center space-x-4">
+                <Avatar className="h-16 w-16 border-4 border-white shadow-md">
+                  <AvatarFallback className="text-xl font-bold bg-gray-200 text-black">
+                    {judgeCharacterData.name.split(' ').map(n => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <Gavel className="h-5 w-5 text-black" />
+                    <CardTitle className="text-xl text-black">{judgeCharacterData.name}</CardTitle>
+                  </div>
+                  <CardDescription className="mt-1">
+                    Federal District Judge • {judgeCharacterData.court}
                   </CardDescription>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <Badge variant="outline" className="text-xs border-black">
+                      <Brain className="h-3 w-3 mr-1" />
+                      {judgeCharacterData.emotionalProfile.temperament}
+                    </Badge>
+                  </div>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Pleading Strictness: {judgeProfile?.characteristics?.pleadingStrictness}/10
-                  </Label>
-                  <Slider
-                    value={[judgeProfile?.characteristics?.pleadingStrictness ?? 5]}
-                    onValueChange={(value) => handleJudgeCharacteristicChange('pleadingStrictness', value)}
-                    max={10}
-                    min={1}
-                    step={1}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-600 mt-1">
-                    {judgeProfile?.evidenceSnippets?.pleadingStrictness?.[0]}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Precedent Weight: {judgeProfile?.characteristics?.precedentWeight}/10
-                  </Label>
-                  <Slider
-                    value={[judgeProfile?.characteristics?.precedentWeight ?? 5]}
-                    onValueChange={(value) => handleJudgeCharacteristicChange('precedentWeight', value)}
-                    max={10}
-                    min={1}
-                    step={1}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-600 mt-1">
-                    {judgeProfile?.evidenceSnippets?.precedentWeight?.[0]}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Policy Receptivity: {judgeProfile?.characteristics?.policyReceptivity}/10
-                  </Label>
-                  <Slider
-                    value={[judgeProfile?.characteristics?.policyReceptivity ?? 5]}
-                    onValueChange={(value) => handleJudgeCharacteristicChange('policyReceptivity', value)}
-                    max={10}
-                    min={1}
-                    step={1}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-600 mt-1">
-                    {judgeProfile?.evidenceSnippets?.policyReceptivity?.[0]}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Plaintiff Friendly: {judgeProfile?.characteristics?.plaintiffFriendly}/10
-                  </Label>
-                  <Slider
-                    value={[judgeProfile?.characteristics?.plaintiffFriendly ?? 5]}
-                    onValueChange={(value) => handleJudgeCharacteristicChange('plaintiffFriendly', value)}
-                    max={10}
-                    min={1}
-                    step={1}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-600 mt-1">
-                    {judgeProfile?.evidenceSnippets?.plaintiffFriendly?.[0]}
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t">
-                <Label className="text-sm font-medium mb-2 block">Judge Notes</Label>
-                <div className="text-sm text-gray-700 p-3 bg-purple-50 rounded border">
-                  {judgeProfile?.notes}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Opposing Counsel Profile */}
-          <Card className="legal-card legal-shadow">
-            <CardHeader className="pb-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-red-100 rounded-lg">
-                  <Briefcase className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">Opposing Counsel</CardTitle>
-                  <CardDescription>
-                    {opposingProfile?.name}
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Aggressiveness Score</Label>
-                <Badge className={getAggressivenessColor(opposingProfile?.aggressivenessScore ?? 5)}>
-                  {opposingProfile?.aggressivenessScore}/10
-                </Badge>
-              </div>
-
+            
+            <CardContent className="space-y-6 pt-6">
+              {/* Emotional Characteristics */}
               <div>
-                <Label className="text-sm font-medium mb-3 block">Likely Moves</Label>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Brain className="h-4 w-4 mr-2 text-black" />
+                  Emotional Characteristics
+                </h4>
+                <div className="space-y-3">
+                  <StatBar label="Patience Level" value={judgeCharacterData.emotionalProfile.patience / 10} />
+                  <StatBar label="Openness to Novel Arguments" value={judgeCharacterData.emotionalProfile.opennessToNovelArguments / 10} />
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div className="p-3 bg-gray-50 rounded border border-gray-300">
+                      <div className="text-xs text-gray-600 font-medium mb-1">Plaintiff Sympathy</div>
+                      <div className="text-2xl font-bold text-black">{judgeCharacterData.emotionalProfile.sympathy.plaintiff}%</div>
+                    </div>
+                    <div className="p-3 bg-gray-100 rounded border border-gray-400">
+                      <div className="text-xs text-gray-700 font-medium mb-1">Defendant Sympathy</div>
+                      <div className="text-2xl font-bold text-black">{judgeCharacterData.emotionalProfile.sympathy.defendant}%</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Strictness Areas */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Scale className="h-4 w-4 mr-2 text-black" />
+                  Areas of Strictness
+                </h4>
                 <div className="space-y-2">
-                  {opposingProfile?.likelyMoves?.map((move, index) => (
-                    <div key={index} className="text-sm text-gray-700 p-2 bg-gray-50 rounded border flex items-start">
-                      <Target className="h-3 w-3 text-red-500 mt-1 mr-2 flex-shrink-0" />
-                      {move}
+                  {judgeCharacterData.strictnessAreas.map((area, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900">{area.area}</div>
+                        <div className="text-xs text-gray-600">{area.note}</div>
+                      </div>
+                      <Badge className="bg-gray-50 text-gray-900 border border-gray-300">
+                        {area.level}/10
+                      </Badge>
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* Lenient Areas */}
               <div>
-                <Label className="text-sm font-medium mb-3 block">
-                  Typical Arguments (editable)
-                </Label>
-                <Textarea
-                  value={opposingProfile?.typicalArguments?.join('\n') ?? ''}
-                  onChange={(e) => handleOpposingArgumentsChange(e.target.value)}
-                  placeholder="Enter typical arguments, one per line..."
-                  rows={4}
-                  className="text-sm"
-                />
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium mb-3 block">Known Weaknesses</Label>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <TrendingUp className="h-4 w-4 mr-2 text-black" />
+                  Areas of Flexibility
+                </h4>
                 <div className="space-y-2">
-                  {opposingProfile?.weaknesses?.map((weakness, index) => (
-                    <div key={index} className="text-sm text-gray-700 p-2 bg-green-50 rounded border flex items-start">
-                      <Shield className="h-3 w-3 text-green-500 mt-1 mr-2 flex-shrink-0" />
-                      {weakness}
+                  {judgeCharacterData.lenientAreas.map((area, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900">{area.area}</div>
+                        <div className="text-xs text-gray-600">{area.note}</div>
+                      </div>
+                      <Badge className="bg-gray-50 text-gray-900 border border-gray-300">
+                        {area.level}/10
+                      </Badge>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Statistics */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Award className="h-4 w-4 mr-2 text-black" />
+                  Judicial Statistics
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-600 mb-1">MTD Grant Rate</div>
+                    <div className="text-lg font-bold text-gray-900">{judgeCharacterData.statistics.motionsToDismissGranted}%</div>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-600 mb-1">SJ Grant Rate</div>
+                    <div className="text-lg font-bold text-gray-900">{judgeCharacterData.statistics.summaryJudgmentGranted}%</div>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-600 mb-1">Total Cases</div>
+                    <div className="text-lg font-bold text-gray-900">{judgeCharacterData.statistics.totalCases}</div>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-600 mb-1">Avg Trial Length</div>
+                    <div className="text-lg font-bold text-gray-900">{judgeCharacterData.statistics.averageTrialLength}</div>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* User Profile */}
+          {/* Opposing Party Profile Card */}
           <Card className="legal-card legal-shadow">
-            <CardHeader className="pb-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <User className="h-6 w-6 text-blue-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">Your Profile</CardTitle>
-                  <CardDescription>
-                    Configure your approach and preferences
+            <CardHeader className="pb-4 bg-gradient-to-r from-gray-100 to-gray-200">
+              <div className="flex items-center space-x-4">
+                <Avatar className="h-16 w-16 border-4 border-white shadow-md">
+                  <AvatarFallback className="text-xl font-bold bg-gray-300 text-black">
+                    {opposingPartyData.attorney.split(' ').map(n => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <Briefcase className="h-5 w-5 text-black" />
+                    <CardTitle className="text-xl text-black">{opposingPartyData.name}</CardTitle>
+                  </div>
+                  <CardDescription className="mt-1">
+                    {opposingPartyData.attorney}
                   </CardDescription>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <Badge variant="outline" className="text-xs bg-gray-50 border-black">
+                      <Target className="h-3 w-3 mr-1" />
+                      Win Rate: {opposingPartyData.statistics.winRate}%
+                    </Badge>
+                  </div>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Aggressiveness: {userPreferences?.aggressiveness}%
-                  </Label>
-                  <Slider
-                    value={[userPreferences?.aggressiveness ?? 50]}
-                    onValueChange={(value) => setUserPreferences(prev => ({...prev, aggressiveness: value[0]}))}
-                    max={100}
-                    step={10}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-600 mt-1">
-                    How forcefully to present arguments
-                  </div>
+            
+            <CardContent className="space-y-6 pt-6">
+              {/* Emotional Profile */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2 text-gray-700" />
+                  Behavioral Profile
+                </h4>
+                <div className="space-y-3">
+                  <StatBar label="Aggressiveness" value={opposingPartyData.emotionalProfile.aggressiveness / 10} />
+                  <StatBar label="Negotiation Willingness" value={opposingPartyData.emotionalProfile.negotiationWillingness / 10} />
+                  <StatBar label="Bluffing Tendency" value={opposingPartyData.emotionalProfile.bluffingTendency / 10} />
                 </div>
+              </div>
 
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Thoroughness: {userPreferences?.thoroughness}%
-                  </Label>
-                  <Slider
-                    value={[userPreferences?.thoroughness ?? 50]}
-                    onValueChange={(value) => setUserPreferences(prev => ({...prev, thoroughness: value[0]}))}
-                    max={100}
-                    step={10}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-600 mt-1">
-                    Depth of legal analysis and citation
+              {/* Personal Preferences */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Brain className="h-4 w-4 mr-2 text-black" />
+                  Personal Preferences
+                </h4>
+                <div className="space-y-2">
+                  <div className="p-2 bg-gray-50 rounded border">
+                    <div className="text-sm font-medium text-gray-900">Communication Style</div>
+                    <div className="text-xs text-gray-600">{opposingPartyData.personalPreferences.communicationStyle}</div>
                   </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Risk Tolerance: {userPreferences?.riskTolerance}%
-                  </Label>
-                  <Slider
-                    value={[userPreferences?.riskTolerance ?? 50]}
-                    onValueChange={(value) => setUserPreferences(prev => ({...prev, riskTolerance: value[0]}))}
-                    max={100}
-                    step={10}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-600 mt-1">
-                    Willingness to pursue novel arguments
+                  <div className="p-2 bg-gray-50 rounded border">
+                    <div className="text-sm font-medium text-gray-900">Responsiveness</div>
+                    <div className="text-xs text-gray-600">{opposingPartyData.personalPreferences.responsiveness}</div>
                   </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Time Constraints: {userPreferences?.timeConstraints}%
-                  </Label>
-                  <Slider
-                    value={[userPreferences?.timeConstraints ?? 50]}
-                    onValueChange={(value) => setUserPreferences(prev => ({...prev, timeConstraints: value[0]}))}
-                    max={100}
-                    step={10}
-                    className="w-full"
-                  />
-                  <div className="text-xs text-gray-600 mt-1">
-                    Pressure for quick resolution
+                  <div className="p-2 bg-gray-50 rounded border">
+                    <div className="text-sm font-medium text-gray-900">Settlement History</div>
+                    <div className="text-xs text-gray-600">{opposingPartyData.personalPreferences.settlementHistory}</div>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t">
-                <div className="p-3 bg-blue-50 rounded border">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Brain className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium text-blue-800">AI Recommendation</span>
+              {/* Specializations */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Award className="h-4 w-4 mr-2 text-black" />
+                  Areas of Specialization
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {opposingPartyData.specializations.map((spec, idx) => (
+                    <Badge key={idx} className="bg-gray-200 text-black border-gray-300 pointer-events-none">
+                      {spec}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tactical Tendencies */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Target className="h-4 w-4 mr-2 text-gray-700" />
+                  Tactical Tendencies
+                </h4>
+                <div className="space-y-2">
+                  {opposingPartyData.tacticalTendencies.map((tactic, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                      <span className="text-sm text-gray-900">{tactic.tendency}</span>
+                      <div className="flex items-center space-x-2">
+                        <Progress value={tactic.frequency} className="w-20 h-2" />
+                        <span className="text-xs font-medium text-gray-600 w-10">{tactic.frequency}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Statistics */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <TrendingUp className="h-4 w-4 mr-2 text-black" />
+                  Track Record
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-600 mb-1">Cases Won</div>
+                    <div className="text-lg font-bold text-gray-900">{opposingPartyData.statistics.casesWon}</div>
                   </div>
-                  <p className="text-sm text-blue-700">
-                    Based on the judge's precedent preference and opposing counsel's aggressive style, 
-                    consider maintaining high thoroughness with moderate aggressiveness.
-                  </p>
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-600 mb-1">Cases Lost</div>
+                    <div className="text-lg font-bold text-gray-900">{opposingPartyData.statistics.casesLost}</div>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-600 mb-1">Settled Cases</div>
+                    <div className="text-lg font-bold text-gray-900">{opposingPartyData.statistics.settledCases}</div>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-600 mb-1">Win Rate</div>
+                    <div className="text-lg font-bold text-gray-900">{opposingPartyData.statistics.winRate}%</div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -338,78 +376,19 @@ export function DigitalTwins() {
             Back to Strategy
           </Button>
           
-          <div className="flex items-center space-x-4">
-            <Button 
-              variant="outline"
-              className="flex items-center space-x-2"
-              onClick={() => {
-                // Save configuration to localStorage
-                const configData = {
-                  judgeProfile,
-                  opposingProfile,
-                  userPreferences,
-                  timestamp: Date.now()
-                };
-                localStorage.setItem('digitalTwinsConfig', JSON.stringify(configData));
-                
-                // Show success feedback
-                const button = document.activeElement as HTMLButtonElement;
-                if (button) {
-                  const originalText = button.textContent;
-                  button.textContent = 'Saved!';
-                  button.className = button.className.replace('variant="outline"', '') + ' bg-green-100 text-green-800';
-                  setTimeout(() => {
-                    button.textContent = originalText ?? 'Save Configuration';
-                    button.className = button.className.replace(' bg-green-100 text-green-800', '');
-                  }, 2000);
-                }
-              }}
-            >
-              <Settings className="h-4 w-4" />
-              <span>Save Configuration</span>
-            </Button>
-            
-            <Button 
-              onClick={() => router.push('/simulation')}
-              className="legal-gradient text-white flex items-center space-x-2"
-            >
-              <Zap className="h-4 w-4" />
-              <span>Run Courtroom Simulation</span>
-            </Button>
+          <div className="text-sm text-gray-600">
+            <Shield className="h-4 w-4 inline mr-2" />
+            Profiles generated from {judgeCharacterData.statistics.totalCases + opposingPartyData.statistics.casesWon + opposingPartyData.statistics.casesLost + opposingPartyData.statistics.settledCases} historical cases
           </div>
+          
+          <Button 
+            onClick={() => router.push('/simulation')}
+            className="legal-gradient text-white flex items-center space-x-2"
+          >
+            <Zap className="h-4 w-4" />
+            <span>Run Courtroom Simulation</span>
+          </Button>
         </div>
-
-        {/* Configuration Summary */}
-        <Card className="legal-card legal-shadow mt-6">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <Users className="h-5 w-5 mr-2 text-purple-600" />
-              Configuration Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="font-medium text-purple-600">Judge Profile:</span>
-                <p className="text-gray-700">
-                  Moderate strictness, high precedent weight, balanced policy receptivity
-                </p>
-              </div>
-              <div>
-                <span className="font-medium text-red-600">Opposing Counsel:</span>
-                <p className="text-gray-700">
-                  High aggressiveness, focuses on front-label dominance theory
-                </p>
-              </div>
-              <div>
-                <span className="font-medium text-blue-600">Your Approach:</span>
-                <p className="text-gray-700">
-                  Balanced aggressiveness with high thoroughness and moderate risk tolerance
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </>
   );
