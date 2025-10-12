@@ -23,6 +23,13 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+const getScoreVisuals = (score: number) => {
+  if (score >= 7.5) return { stroke: '#059669', textClass: 'text-gray-900', subTextClass: 'text-gray-500' };
+  if (score >= 5) return { stroke: '#f59e0b', textClass: 'text-gray-900', subTextClass: 'text-gray-500' };
+  if (score > 0) return { stroke: '#dc2626', textClass: 'text-gray-900', subTextClass: 'text-gray-500' };
+  return { stroke: '#a3a3a3', textClass: 'text-gray-600', subTextClass: 'text-gray-500' };
+};
+
 // Progress circle component (1-10 scale)
 function ProgressCircle({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' | 'lg' }) {
   const sizes = {
@@ -36,14 +43,7 @@ function ProgressCircle({ score, size = 'md' }: { score: number; size?: 'sm' | '
   const fillPercent = (score / 10) * circumference;
   const viewBoxSize = width;
 
-  const getColor = (s: number) => {
-    if (s >= 8) return { stroke: '#000000', text: 'text-black' }; // Black for high scores
-    if (s >= 6) return { stroke: '#404040', text: 'text-gray-700' }; // Dark gray
-    if (s >= 4) return { stroke: '#808080', text: 'text-gray-600' }; // Medium gray
-    return { stroke: '#a3a3a3', text: 'text-gray-500' }; // Light gray for low scores
-  };
-
-  const { stroke, text } = getColor(score);
+  const visuals = getScoreVisuals(score);
   const center = viewBoxSize / 2;
 
   return (
@@ -62,15 +62,15 @@ function ProgressCircle({ score, size = 'md' }: { score: number; size?: 'sm' | '
           cy={center}
           r={radius}
           fill="none"
-          stroke={stroke}
+          stroke={visuals.stroke}
           strokeWidth={strokeWidth}
           strokeDasharray={`${fillPercent} ${circumference}`}
           strokeLinecap="round"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`font-bold leading-none ${fontSize} ${text}`}>{score.toFixed(1)}</span>
-        <span className={`${subFontSize} text-gray-500 leading-none mt-0.5`}>/ 10</span>
+        <span className={`font-bold leading-none ${fontSize} ${visuals.textClass}`}>{score.toFixed(1)}</span>
+        <span className={`${subFontSize} ${visuals.subTextClass} leading-none mt-0.5`}>/ 10</span>
       </div>
     </div>
   );
@@ -498,7 +498,7 @@ export function CourtroomSimulation() {
                     <div className="space-y-2">
                       {runs.map((run, idx) => {
                         const isRunExpanded = expandedRun === run.runId;
-                        
+
                         return (
                         <Card 
                           key={run.runId} 
@@ -575,7 +575,7 @@ export function CourtroomSimulation() {
                                             <div className="flex items-start space-x-2">
                                               <AlertCircle className="h-4 w-4 text-black mt-0.5" />
                                               <div>
-                                                <p className="text-xs font-medium text-black mb-1">Key Moment:</p>
+                                                <p className="text-xs font-medium text-black uppercase tracking-wide mb-1">Key Moment:</p>
                                                 <p className="text-sm text-gray-800">
                                                   {(run.evaluation?.rationale || '').trim() ||
                                                     (round.judgeScoring.rationale || '').trim() ||
@@ -593,22 +593,34 @@ export function CourtroomSimulation() {
                                             <h5 className="text-xs font-medium text-gray-600 uppercase tracking-wide">
                                               Scoring Factors
                                             </h5>
-                                            {round.judgeScoring.featureAttributions?.map((attr, idx) => (
-                                              <div key={idx} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
-                                                <span className="text-gray-700 flex items-center">
-                                                  {attr.weight > 0 ? <CheckCircle className="h-3 w-3 text-black mr-2" /> : <AlertCircle className="h-3 w-3 text-gray-600 mr-2" />}
-                                                  {attr.factor}
-                                                </span>
-                                                <div className="flex items-center space-x-2">
-                                                  <span className="text-xs text-gray-500">{attr.impact}</span>
-                                                  <div className={`text-xs px-2 py-0.5 rounded font-medium ${
-                                                    attr.weight > 0 ? 'bg-black text-white' : 'bg-gray-600 text-white'
-                                                  }`}>
-                                                    {attr.weight > 0 ? '+' : ''}{(attr.weight * 100).toFixed(0)}%
+                                            {round.judgeScoring.featureAttributions?.map((attr, idx) => {
+                                              const isPositive = attr.weight > 0;
+                                              return (
+                                                <div
+                                                  key={idx}
+                                                  className="flex items-center justify-between text-sm p-2 bg-white rounded border"
+                                                >
+                                                  <span className="text-gray-700 flex items-center">
+                                                    {isPositive ? (
+                                                      <CheckCircle className="h-3 w-3 text-gray-500 mr-2" />
+                                                    ) : (
+                                                      <AlertCircle className="h-3 w-3 text-gray-500 mr-2" />
+                                                    )}
+                                                    {attr.factor}
+                                                  </span>
+                                                  <div className="flex items-center space-x-2">
+                                                    <span className="text-xs text-gray-500">{attr.impact}</span>
+                                                    <div
+                                                      className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                                        isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                                                      }`}
+                                                    >
+                                                      {isPositive ? '+' : ''}{(attr.weight * 100).toFixed(0)}%
+                                                    </div>
                                                   </div>
                                                 </div>
-                                              </div>
-                                            ))}
+                                              );
+                                            })}
                                           </div>
 
                                           {(run.evaluation?.strengths?.length ?? 0) > 0 && (
@@ -619,7 +631,7 @@ export function CourtroomSimulation() {
                                               <div className="space-y-2">
                                                 {run.evaluation?.strengths?.map((strength, idx) => (
                                                   <div key={`strength-${idx}`} className="flex items-start space-x-2 text-sm text-gray-700">
-                                                    <CheckCircle className="h-3 w-3 text-black mt-0.5" />
+                                                    <CheckCircle className="h-3 w-3 text-gray-600 mt-0.5" />
                                                     <span>{strength}</span>
                                                   </div>
                                                 ))}
