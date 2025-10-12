@@ -89,13 +89,21 @@ const opposingPartyData = {
 };
 
 function StatBar({ label, value }: { label: string; value: number }) {
+  // Value is on a 0-10 scale, convert to percentage
+  const fillPercentage = value * 10;
+  
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-sm">
         <span className="text-gray-700">{label}</span>
         <span className="font-medium text-gray-900">{value}/10</span>
       </div>
-      <Progress value={value * 10} className="h-2 bg-black" />
+      <div className="relative h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+        <div 
+          className="absolute left-0 h-full bg-black rounded-full transition-all duration-300"
+          style={{ width: `${fillPercentage}%` }}
+        />
+      </div>
     </div>
   );
 }
@@ -135,7 +143,7 @@ export function DigitalTwins() {
                     <CardTitle className="text-xl text-black">{judgeCharacterData.name}</CardTitle>
                   </div>
                   <CardDescription className="mt-1">
-                    Federal District Judge • {judgeCharacterData.court}
+                    Federal District Judge • SDNY
                   </CardDescription>
                   <div className="flex items-center space-x-2 mt-2">
                     <Badge variant="outline" className="text-xs border-black">
@@ -179,27 +187,6 @@ export function DigitalTwins() {
                 </h4>
                 <div className="space-y-2">
                   {judgeCharacterData.strictnessAreas.map((area, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900">{area.area}</div>
-                        <div className="text-xs text-gray-600">{area.note}</div>
-                      </div>
-                      <Badge className="bg-gray-50 text-gray-900 border border-gray-300">
-                        {area.level}/10
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Lenient Areas */}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                  <TrendingUp className="h-4 w-4 mr-2 text-black" />
-                  Areas of Flexibility
-                </h4>
-                <div className="space-y-2">
-                  {judgeCharacterData.lenientAreas.map((area, idx) => (
                     <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
                       <div className="flex-1">
                         <div className="text-sm font-medium text-gray-900">{area.area}</div>
@@ -315,25 +302,6 @@ export function DigitalTwins() {
                     <Badge key={idx} className="bg-gray-200 text-black border-gray-300 pointer-events-none">
                       {spec}
                     </Badge>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tactical Tendencies */}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                  <Target className="h-4 w-4 mr-2 text-gray-700" />
-                  Tactical Tendencies
-                </h4>
-                <div className="space-y-2">
-                  {opposingPartyData.tacticalTendencies.map((tactic, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
-                      <span className="text-sm text-gray-900">{tactic.tendency}</span>
-                      <div className="flex items-center space-x-2">
-                        <Progress value={tactic.frequency} className="w-20 h-2" />
-                        <span className="text-xs font-medium text-gray-600 w-10">{tactic.frequency}%</span>
-                      </div>
-                    </div>
                   ))}
                 </div>
               </div>
