@@ -63,7 +63,7 @@ export function SidebarNav() {
         <div className="flex items-center space-x-3">
           <Scale className="h-8 w-8 text-white" />
           <div>
-            <h1 className="text-xl font-bold">Legal Strategy</h1>
+            <h1 className="text-xl font-bold">Kanon</h1>
             <p className="text-sm text-gray-400">Platform</p>
           </div>
         </div>
@@ -101,7 +101,7 @@ export function SidebarNav() {
 
       <div className="p-4 border-t border-gray-800 mt-auto">
         <div className="text-xs text-gray-400 space-y-1">
-          <p>Legal Strategy Platform MVP</p>
+          <p>Kanon</p>
           <p>© 2025 All rights reserved</p>
         </div>
       </div>
