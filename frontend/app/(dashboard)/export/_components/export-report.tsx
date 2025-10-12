@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -17,12 +16,132 @@ import {
   CheckCircle,
   Scale,
   BookOpen,
-  AlertCircle,
+  AlertTriangle,
   Share2,
-  FileCheck,
-  Quote
+  Quote,
+  Layers,
+  Sparkles,
+  Target,
+  TrendingUp
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { LegalLoading } from '@/components/ui/legal-loading';
+
+type StoredStrategyRun = {
+  score?: number;
+  variation?: string;
+  defenseArgument?: string;
+  judgmentSummary?: string;
+  evaluation?: {
+    rationale?: string;
+    strengths?: string[];
+    weaknesses?: string[];
+  };
+};
+
+type StoredStrategy = {
+  strategyId?: string;
+  strategyTitle?: string;
+  runs?: StoredStrategyRun[];
+  averageScore?: number;
+  winsCount?: number;
+};
+
+type StrategySummary = {
+  id: string;
+  title: string;
+  averageScore: number;
+  winsCount: number;
+  totalRuns: number;
+  successRate: number;
+  bestRun: StoredStrategyRun | null;
+  strengths: string[];
+  weaknesses: string[];
+  keyInsight: string;
+};
+
+type StatCard = {
+  label: string;
+  value: string;
+  helper: string;
+  icon: LucideIcon;
+};
+
+const truncate = (value: string, limit = 220) => {
+  if (!value) {
+    return '';
+  }
+  if (value.length <= limit) {
+    return value;
+  }
+  return `${value.slice(0, limit - 1)}…`;
+};
+
+const buildStrategySummaries = (strategies: StoredStrategy[]): StrategySummary[] => {
+  return strategies
+    .map<StrategySummary | null>((strategy, index) => {
+      if (!strategy || typeof strategy !== 'object') {
+        return null;
+      }
+
+      const runs = Array.isArray(strategy.runs)
+        ? strategy.runs.filter((run) => run && typeof run === 'object')
+        : [];
+
+      const sortedRuns = runs
+        .slice()
+        .sort((a, b) => ((b?.score ?? 0) - (a?.score ?? 0)));
+
+      const bestRun = sortedRuns[0] ?? null;
+      const totalRuns = runs.length;
+      const winsCount = typeof strategy.winsCount === 'number'
+        ? strategy.winsCount
+        : runs.filter((run) => (run?.score ?? 0) >= 7).length;
+      const averageScore = typeof strategy.averageScore === 'number'
+        ? strategy.averageScore
+        : (runs.reduce((sum, run) => sum + (run?.score ?? 0), 0) / (totalRuns || 1));
+
+      const strengths = (bestRun?.evaluation?.strengths || [])
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .slice(0, 3);
+
+      const weaknesses = (bestRun?.evaluation?.weaknesses || [])
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .slice(0, 3);
+
+      const rationale = (bestRun?.evaluation?.rationale || '').trim();
+      const defenseLine = (bestRun?.defenseArgument || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line.length > 0) || '';
+      const judgmentLine = (bestRun?.judgmentSummary || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line.length > 0) || '';
+
+      const keyInsight = truncate(rationale || defenseLine || judgmentLine);
+
+      return {
+        id: strategy.strategyId ?? strategy.strategyTitle ?? `strategy-${index}`,
+        title: strategy.strategyTitle ?? 'Unnamed Strategy',
+        averageScore,
+        winsCount,
+        totalRuns,
+        successRate: totalRuns > 0 ? winsCount / totalRuns : 0,
+        bestRun,
+        strengths,
+        weaknesses,
+        keyInsight,
+      };
+    })
+    .filter((summary): summary is StrategySummary => Boolean(summary))
+    .sort((a, b) => {
+      if (b.averageScore !== a.averageScore) {
+        return b.averageScore - a.averageScore;
+      }
+      return b.successRate - a.successRate;
+    });
+};
 
 export function ExportReport() {
   const router = useRouter();
@@ -32,6 +151,7 @@ export function ExportReport() {
   const [memorandum, setMemorandum] = useState<string>('');
   const [isLoadingMemo, setIsLoadingMemo] = useState(true);
   const [bestStrategy, setBestStrategy] = useState<any>(null);
+  const [strategySummaries, setStrategySummaries] = useState<StrategySummary[]>([]);
   const [caseDetails, setCaseDetails] = useState<Partial<CaseIntake> | null>(null);
   const pdfContentRef = useRef<HTMLDivElement>(null);
 
@@ -63,6 +183,69 @@ export function ExportReport() {
 
     return `${descriptorParts.join(' — ')} Strategy Memorandum`;
   }, [caseDetails]);
+
+  const bestStrategySnapshot = strategySummaries[0] ?? null;
+  const alternativeStrategies = useMemo(
+    () => strategySummaries.slice(1, 3),
+    [strategySummaries]
+  );
+  const totalRuns = useMemo(
+    () => strategySummaries.reduce((sum, strategy) => sum + strategy.totalRuns, 0),
+    [strategySummaries]
+  );
+
+  const stats = useMemo<StatCard[]>(() => {
+    if (!bestStrategySnapshot) {
+      return [
+        {
+          label: 'Strategies Evaluated',
+          value: '0',
+          helper: 'No simulations recorded',
+          icon: Layers,
+        },
+      ];
+    }
+
+    const topScore = bestStrategySnapshot.bestRun?.score ?? bestStrategySnapshot.averageScore;
+
+    return [
+      {
+        label: 'Top Score',
+        value: `${topScore.toFixed(1)}/10`,
+        helper: bestStrategySnapshot.title,
+        icon: Sparkles,
+      },
+      {
+        label: 'Success Rate',
+        value: `${Math.round(bestStrategySnapshot.successRate * 100)}%`,
+        helper: `${bestStrategySnapshot.winsCount} of ${bestStrategySnapshot.totalRuns} runs`,
+        icon: Target,
+      },
+      {
+        label: 'Runs Analyzed',
+        value: String(totalRuns),
+        helper: `${strategySummaries.length} strategy${strategySummaries.length === 1 ? '' : 'ies'}`,
+        icon: Layers,
+      },
+    ];
+  }, [bestStrategySnapshot, strategySummaries.length, totalRuns]);
+
+  const caseSnapshot = useMemo(() => {
+    if (!caseDetails) {
+      return [];
+    }
+
+    return [
+      { label: 'Case Type', value: caseDetails.caseType },
+      { label: 'Jurisdiction', value: caseDetails.jurisdiction },
+      { label: 'Judge', value: caseDetails.judge },
+      { label: 'Posture', value: caseDetails.posture },
+    ].filter((item) => item.value && String(item.value).trim().length > 0);
+  }, [caseDetails]);
+
+  const strengthsList: string[] = Array.isArray(bestStrategy?.strengths) ? bestStrategy.strengths : [];
+  const weaknessesList: string[] = Array.isArray(bestStrategy?.weaknesses) ? bestStrategy.weaknesses : [];
+  const keyInsight = bestStrategySnapshot?.keyInsight || '';
 
   const markdownComponents = useMemo<Components>(
     () => ({
@@ -213,6 +396,11 @@ export function ExportReport() {
       const caseData = JSON.parse(localStorage.getItem('legalCase') || '{}');
       setCaseDetails(caseData);
       const simulationResults = JSON.parse(localStorage.getItem('simulationResults') || '[]');
+      if (Array.isArray(simulationResults)) {
+        setStrategySummaries(buildStrategySummaries(simulationResults as StoredStrategy[]));
+      } else {
+        setStrategySummaries([]);
+      }
       
       if (simulationResults.length === 0) {
         // No simulation results, redirect back
@@ -461,62 +649,270 @@ export function ExportReport() {
         description="Generate and download your comprehensive legal strategy memorandum"
       />
       
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="grid lg:grid-cols-3 gap-6">
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={stat.label} className="legal-card legal-shadow">
+                <CardHeader className="pb-3">
+                  <CardDescription className="uppercase tracking-wide text-xs text-gray-500">
+                    {stat.label}
+                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-semibold text-black">{stat.value}</span>
+                    <Icon className="h-5 w-5 text-black" />
+                  </div>
+                  <p className="text-xs text-gray-600">{stat.helper}</p>
+                </CardHeader>
+              </Card>
+            );
+          })}
+        </div>
+
+        {caseSnapshot.length > 0 && (
+          <Card className="legal-card legal-shadow">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg text-black">Case Snapshot</CardTitle>
+              <CardDescription>Context pulled from your intake</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {caseSnapshot.map((item) => (
+                  <div key={item.label} className="flex flex-col">
+                    <span className="text-xs uppercase text-gray-500">{item.label}</span>
+                    <span className="text-sm text-gray-900">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid lg:grid-cols-3 gap-6 items-stretch">
+          <Card className="legal-card legal-shadow lg:col-span-2 h-full flex flex-col">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <FileText className="h-6 w-6 text-black" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl text-black">Strategy Memorandum</CardTitle>
+                    <CardDescription>
+                      Comprehensive legal strategy based on AI analysis
+                    </CardDescription>
+                  </div>
+                </div>
+                <Badge className="bg-black text-white border-black">
+                  Ready for Export
+                </Badge>
+              </div>
+            </CardHeader>
+            
+            <CardContent className="flex-1 space-y-6">
+              <div className="pdf-preview bg-white border rounded-lg max-h-96 overflow-y-auto">
+                <div className="legal-document-container legal-document-preview">
+                  <LegalMemorandumContent />
+                </div>
+              </div>
+
+              <div
+                aria-hidden="true"
+                ref={pdfContentRef}
+                className="legal-document-container legal-document--pdf"
+                style={{
+                  position: 'fixed',
+                  left: '-10000px',
+                  top: '-10000px',
+                  width: '768px',
+                  padding: 0,
+                }}
+              >
+                <LegalMemorandumContent />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="legal-card legal-shadow h-full flex flex-col">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center text-black">
+                <Download className="h-5 w-5 mr-2 text-black" />
+                Export Options
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col gap-4">
+              <Button onClick={generatePDF} disabled={isGenerating} className="w-full legal-gradient text-white">
+                {isGenerating ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                    <span>Generating PDF...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Download className="h-4 w-4" />
+                    <span>Download PDF</span>
+                  </div>
+                )}
+              </Button>
+
+              <Button onClick={copyToClipboard} variant="outline" className="w-full">
+                {copied ? (
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-black" />
+                    <span>Copied!</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Copy className="h-4 w-4" />
+                    <span>Copy Text</span>
+                  </div>
+                )}
+              </Button>
+
+              <div className="mt-auto">
+                <Button onClick={shareReport} variant="outline" className="w-full">
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share Report
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
           {/* Report Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Document Preview */}
+          {bestStrategySnapshot && (
             <Card className="legal-card legal-shadow">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-gray-100 rounded-lg">
-                      <FileText className="h-6 w-6 text-black" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl text-black">Strategy Memorandum</CardTitle>
-                      <CardDescription>
-                        Comprehensive legal strategy based on AI analysis
-                      </CardDescription>
-                    </div>
+                  <div>
+                    <CardTitle className="text-xl text-black">{bestStrategySnapshot.title}</CardTitle>
+                    <CardDescription>Top performer across the latest simulation batch</CardDescription>
                   </div>
-                  <Badge className="bg-black text-white border-black">
-                    Ready for Export
-                  </Badge>
+                  <Badge className="bg-black text-white border-black">Primary pick</Badge>
                 </div>
               </CardHeader>
-              
-              <CardContent className="space-y-6">
-                <div className="pdf-preview bg-white border rounded-lg max-h-96 overflow-y-auto">
-                  <div className="legal-document-container legal-document-preview">
-                    <LegalMemorandumContent />
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs uppercase text-gray-500">Average Score</p>
+                    <p className="text-2xl font-semibold text-black">
+                      {bestStrategySnapshot.averageScore.toFixed(1)}
+                      <span className="text-sm text-gray-500"> /10</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-gray-500">Success Rate</p>
+                    <p className="text-2xl font-semibold text-black">
+                      {Math.round(bestStrategySnapshot.successRate * 100)}%
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {bestStrategySnapshot.winsCount} wins of {bestStrategySnapshot.totalRuns} runs
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-gray-500">Standout Run</p>
+                    <p className="text-2xl font-semibold text-black">
+                      {(bestStrategySnapshot.bestRun?.score ?? bestStrategySnapshot.averageScore).toFixed(1)}
+                    </p>
+                    {bestStrategySnapshot.bestRun?.variation && (
+                      <p className="text-xs text-gray-500">{bestStrategySnapshot.bestRun.variation}</p>
+                    )}
                   </div>
                 </div>
 
-                <div
-                  aria-hidden="true"
-                  ref={pdfContentRef}
-                  className="legal-document-container legal-document--pdf"
-                  style={{
-                    position: 'fixed',
-                    left: '-10000px',
-                    top: '-10000px',
-                    width: '768px',
-                    padding: 0,
-                  }}
-                >
-                  <LegalMemorandumContent />
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-black">
+                    <TrendingUp className="h-4 w-4" />
+                    Key insight from the winning run
+                  </div>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {keyInsight || 'No qualitative insight captured for this run.'}
+                  </p>
                 </div>
               </CardContent>
             </Card>
+          )}
 
-            {/* Strategy Outline Explanations */}
+          <div className="grid gap-4 md:grid-cols-2">
             <Card className="legal-card legal-shadow">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center text-black">
-                  <BookOpen className="h-5 w-5 mr-2 text-black" />
-                  Detailed Strategy Explanation
-                </CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg text-black">What Worked</CardTitle>
+                <CardDescription>Signals that moved the judge</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {strengthsList.length > 0 ? (
+                  <ul className="space-y-2 text-sm text-gray-700">
+                    {strengthsList.map((item, index) => (
+                      <li key={index} className="flex gap-2">
+                        <Sparkles className="mt-0.5 h-4 w-4 flex-shrink-0 text-black" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500">No standout strengths captured.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="legal-card legal-shadow">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg text-black">Risks to Watch</CardTitle>
+                <CardDescription>Where the argument lost traction</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {weaknessesList.length > 0 ? (
+                  <ul className="space-y-2 text-sm text-gray-700">
+                    {weaknessesList.map((item, index) => (
+                      <li key={index} className="flex gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-700" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500">No critical weaknesses detected.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {alternativeStrategies.length > 0 && (
+            <Card className="legal-card legal-shadow">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg text-black">Other viable options</CardTitle>
+                <CardDescription>Strong contenders worth keeping in reserve</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {alternativeStrategies.map((strategy) => (
+                  <div
+                    key={strategy.id}
+                    className="flex items-center justify-between rounded-lg border border-gray-200 p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{strategy.title}</p>
+                      <p className="text-xs text-gray-500">
+                        {strategy.averageScore.toFixed(1)}/10 avg • {Math.round(strategy.successRate * 100)}% success
+                      </p>
+                    </div>
+                    {strategy.bestRun?.variation && (
+                      <Badge variant="outline">{strategy.bestRun.variation}</Badge>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Strategy Outline Explanations */}
+          <Card className="legal-card legal-shadow">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center text-black">
+                <BookOpen className="h-5 w-5 mr-2 text-black" />
+                Detailed Strategy Explanation
+              </CardTitle>
               <CardDescription>
                 Each argument supported by case law and evidence
               </CardDescription>
@@ -525,199 +921,49 @@ export function ExportReport() {
               {exportData.supportingArguments && exportData.supportingArguments.length > 0 ? (
                 exportData.supportingArguments.map((arg, index) => {
                   const primaryCitation = arg.citations?.[0] || 'Simulation Insight';
+                  const hasAdditionalCitations = (arg.citations?.length || 0) > 1;
+
                   return (
-                    <div key={index} className="p-4 border border-gray-300 rounded-lg bg-gray-50">
-                      <h4 className="font-semibold text-gray-900 mb-3">{index + 1}. {arg.point}</h4>
-                      
-                      <div className="space-y-3">
-                        {/* Case Support */}
-                        <div className="bg-white border-l-4 border-black p-3 rounded">
-                          <div className="flex items-start space-x-2">
-                            <Scale className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-xs font-medium text-black mb-1">What Worked:</p>
-                              <p className="text-sm text-gray-700">
-                                <span className="font-medium italic">{primaryCitation}</span> demonstrated how this angle persuaded the judge in the simulation.
-                              </p>
-                            </div>
+                    <div key={arg.point} className="border border-gray-200 rounded-lg p-4 bg-white">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Badge className="bg-black text-white border-black">Argument {index + 1}</Badge>
+                            <span className="text-xs uppercase text-gray-500">{primaryCitation}</span>
                           </div>
+                          <h4 className="text-sm font-semibold text-gray-900">{arg.point}</h4>
+                          <p className="text-sm text-gray-700 leading-relaxed">{arg.analysis}</p>
                         </div>
-
-                        {/* Evidence Support */}
-                        <div className="bg-white border-l-4 border-gray-600 p-3 rounded">
-                          <div className="flex items-start space-x-2">
-                            <FileCheck className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-xs font-medium text-gray-900 mb-1">Evidence to Elevate:</p>
-                              <p className="text-sm text-gray-700">
-                                Bolster this strength with exhibits and testimony that mirror the successful framing from the run.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Highlighted Snippet */}
-                        <div className="bg-gray-100 border-l-4 border-black p-3 rounded">
-                          <div className="flex items-start space-x-2">
-                            <Quote className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-xs font-medium text-black mb-1">Key Passage:</p>
-                              <p className="text-sm text-gray-700 italic">
-                                "{arg.analysis || bestStrategy?.rationale || 'The simulation underscored this argument as a decisive moment.'}"
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                        <Quote className="h-5 w-5 text-gray-300" />
                       </div>
+
+                      {hasAdditionalCitations && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs uppercase text-gray-500 mb-2">Supporting Citations</p>
+                          <ul className="space-y-1 text-xs text-gray-600">
+                            {arg.citations?.slice(1).map((citation, citationIndex) => (
+                              <li key={citationIndex} className="flex items-start">
+                                <span className="mr-2 mt-0.5 h-1.5 w-1.5 rounded-full bg-gray-400" />
+                                {citation}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   );
                 })
               ) : (
-                <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-white text-sm text-gray-600">
-                  Run the digital courtroom simulation to populate argument-level insights ready for export.
-                </div>
-              )}
-
-              {bestStrategy?.weaknesses?.length > 0 && (
-                <div className="p-4 border border-gray-200 rounded-lg bg-white">
-                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                    <AlertCircle className="h-4 w-4 text-gray-700 mr-2" />
-                    Watchouts Identified by Simulation Judge
-                  </h4>
-                  <ul className="space-y-2 text-sm text-gray-700">
-                    {bestStrategy.weaknesses.map((weakness: string, idx: number) => (
-                      <li key={`weakness-${idx}`} className="flex items-start space-x-2">
-                        <AlertCircle className="h-3 w-3 text-gray-500 mt-0.5" />
-                        <span>{weakness}</span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="text-sm text-gray-500">
+                  Supporting arguments will appear here once the memorandum is generated.
                 </div>
               )}
             </CardContent>
           </Card>
-
-            {/* Further Actions */}
-            <Card className="legal-card legal-shadow">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center text-black">
-                  <FileCheck className="h-5 w-5 mr-2 text-black" />
-                  Further Actions Required
-                </CardTitle>
-                <CardDescription>
-                  Documents and steps needed for next phases
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded border border-gray-300">
-                    <CheckCircle className="h-5 w-5 text-black flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Motion to Dismiss Brief</h4>
-                      <p className="text-sm text-gray-700">Draft and file comprehensive MTD brief incorporating strategy arguments (Due: 21 days before hearing)</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded border border-gray-300">
-                    <CheckCircle className="h-5 w-5 text-black flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Declaration of Counsel</h4>
-                      <p className="text-sm text-gray-700">Prepare declaration with exhibits showing product labeling and packaging materials</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded border border-gray-300">
-                    <CheckCircle className="h-5 w-5 text-black flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Oral Argument Outline</h4>
-                      <p className="text-sm text-gray-700">Create detailed outline for oral argument incorporating judge's preferences from digital twin analysis</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 bg-gray-100 rounded border border-gray-400">
-                    <AlertCircle className="h-5 w-5 text-gray-700 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Contingency: Discovery Plan</h4>
-                      <p className="text-sm text-gray-700">If MTD is denied, prepare discovery requests focused on plaintiff's reliance and damages (to be filed within 30 days of ruling)</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 bg-gray-100 rounded border border-gray-400">
-                    <AlertCircle className="h-5 w-5 text-gray-700 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Expert Appraisal</h4>
-                      <p className="text-sm text-gray-700">If case proceeds, retain consumer survey expert to rebut plaintiff's reliance claims</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Export Controls */}
-          <div className="lg:col-span-1">
-            <div className="space-y-6">
-              {/* Export Actions */}
-              <Card className="legal-card legal-shadow sticky top-6">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center text-black">
-                    <Download className="h-5 w-5 mr-2 text-black" />
-                    Export Options
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button
-                    onClick={generatePDF}
-                    disabled={isGenerating}
-                    className="w-full legal-gradient text-white"
-                  >
-                    {isGenerating ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                        <span>Generating PDF...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <Download className="h-4 w-4" />
-                        <span>Download PDF</span>
-                      </div>
-                    )}
-                  </Button>
-
-                  <Button
-                    onClick={copyToClipboard}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {copied ? (
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="h-4 w-4 text-black" />
-                        <span>Copied!</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <Copy className="h-4 w-4" />
-                        <span>Copy Text</span>
-                      </div>
-                    )}
-                  </Button>
-
-                  <Button
-                    onClick={shareReport}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Share Report
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
         </div>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t">
+        <div className="flex items-center justify-between pt-6 border-t">
           <Button 
             variant="outline" 
             onClick={() => router.push('/simulation')}
