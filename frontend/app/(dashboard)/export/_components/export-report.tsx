@@ -1,14 +1,15 @@
 
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import { useRouter } from 'next/navigation';
 import { ProgressHeader } from '@/components/layout/progress-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockStrategies, mockSimilarCases } from '@/lib/mock-data';
-import { ExportData } from '@/lib/types';
+import { CaseIntake, ExportData } from '@/lib/types';
 import { 
   Download, 
   FileText, 
@@ -19,7 +20,6 @@ import {
   AlertCircle,
   Share2,
   FileCheck,
-  GitBranch,
   Quote
 } from 'lucide-react';
 
@@ -31,6 +31,174 @@ export function ExportReport() {
   const [memorandum, setMemorandum] = useState<string>('');
   const [isLoadingMemo, setIsLoadingMemo] = useState(true);
   const [bestStrategy, setBestStrategy] = useState<any>(null);
+  const [caseDetails, setCaseDetails] = useState<Partial<CaseIntake> | null>(null);
+  const pdfContentRef = useRef<HTMLDivElement>(null);
+
+  const formattedDate = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date()),
+    []
+  );
+
+  const memoSubject = useMemo(() => {
+    if (!caseDetails) {
+      return 'Strategic Litigation Memorandum';
+    }
+
+    const descriptorParts = [
+      caseDetails.caseType,
+      caseDetails.posture ? `${caseDetails.posture} posture` : null,
+    ]
+      .filter(Boolean)
+      .map((part) => String(part));
+
+    if (descriptorParts.length === 0) {
+      return 'Strategic Litigation Memorandum';
+    }
+
+    return `${descriptorParts.join(' — ')} Strategy Memorandum`;
+  }, [caseDetails]);
+
+  const markdownComponents = useMemo<Components>(
+    () => ({
+      a: (props) => (
+        <a
+          {...props}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+      ),
+    }),
+    []
+  );
+
+  const sanitizeMemorandum = useMemo<(content: string) => string>(() => {
+    const removeExactMatches = new Set([
+      'strategic memorandum',
+      'legal strategy memorandum',
+    ]);
+
+    const removePrefixes = ['to:', 'from:', 'date:', 're:'];
+
+    return (content: string) => {
+      if (!content) return content;
+
+      const normalized = content.replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').trimStart();
+      const executiveMatch = normalized.match(/(^|\n)(#{1,6}\s*)?Executive Summary\b/i);
+
+      let working = normalized;
+
+      if (executiveMatch && executiveMatch.index !== undefined) {
+        working = normalized.slice(executiveMatch.index).replace(/^\s+/, '');
+      }
+
+      const lines = working.split('\n');
+      const cleanedLines: string[] = [];
+
+      for (const rawLine of lines) {
+        const line = rawLine;
+        const strippedHeading = line.replace(/^#{1,6}\s*/, '');
+        const plain = strippedHeading.replace(/[*_`~]/g, '').replace(/\[|\]/g, '').trim();
+        const lower = plain.toLowerCase();
+
+        if (!plain) {
+          if (cleanedLines.length === 0 || cleanedLines[cleanedLines.length - 1].trim() === '') {
+            continue;
+          }
+          cleanedLines.push('');
+          continue;
+        }
+
+        if (removeExactMatches.has(lower)) {
+          continue;
+        }
+
+        if (removePrefixes.some((prefix) => lower.startsWith(prefix))) {
+          continue;
+        }
+
+        cleanedLines.push(line);
+      }
+
+      const finalText = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+      return finalText || working;
+    };
+  }, []);
+
+  const LegalMemorandumContent = () => (
+    <div className="legal-document">
+      <header className="legal-document__header">
+        <div className="legal-document__letterhead">
+          <div>
+            <p className="legal-letterhead-title">Legal Strategy Platform</p>
+            <p className="legal-letterhead-subtitle">Strategic Litigation Intelligence Unit</p>
+          </div>
+          <div className="legal-letterhead-meta">
+            <p><span className="legal-label">Date:</span> {formattedDate}</p>
+            {caseDetails?.jurisdiction && (
+              <p><span className="legal-label">Jurisdiction:</span> {caseDetails.jurisdiction}</p>
+            )}
+            {caseDetails?.judge && (
+              <p><span className="legal-label">Judge:</span> {caseDetails.judge}</p>
+            )}
+          </div>
+        </div>
+        <hr className="legal-divider" />
+        <div className="legal-metadata">
+          <p><span className="legal-label">To:</span> Litigation Team</p>
+          <p><span className="legal-label">From:</span> Legal Strategy Platform</p>
+          <p><span className="legal-label">Re:</span> {memoSubject}</p>
+          {caseDetails?.opposingCounsel && (
+            <p><span className="legal-label">Opposing Counsel:</span> {caseDetails.opposingCounsel}</p>
+          )}
+        </div>
+      </header>
+
+      <section className="legal-section">
+        <h2>Strategic Memorandum</h2>
+        <div className="legal-body">
+          <ReactMarkdown components={markdownComponents}>
+            {memorandum || '_The memorandum has not been generated._'}
+          </ReactMarkdown>
+        </div>
+      </section>
+
+      {bestStrategy && (
+        <section className="legal-section">
+          <h2>Simulation Results Summary</h2>
+          <div className="legal-summary-grid">
+            <div>
+              <span className="legal-label">Best Strategy</span>
+              <p>{bestStrategy.title}</p>
+            </div>
+            <div>
+              <span className="legal-label">Average Score</span>
+              <p>{bestStrategy.averageScore.toFixed(1)}/10</p>
+            </div>
+            <div>
+              <span className="legal-label">Defense Wins</span>
+              <p>{bestStrategy.winsCount}/{bestStrategy.totalRuns}</p>
+            </div>
+            <div>
+              <span className="legal-label">Success Rate</span>
+              <p>{((bestStrategy.winsCount / bestStrategy.totalRuns) * 100).toFixed(0)}%</p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <footer className="legal-footer">
+        <p className="legal-footer-note">
+          This memorandum is privileged and confidential. It synthesizes AI-assisted strategy insights with legal analysis tailored to the provided case profile.
+        </p>
+        <p className="legal-footer-signoff">Prepared by Legal Strategy Platform</p>
+      </footer>
+    </div>
+  );
 
   useEffect(() => {
     generateMemorandum();
@@ -42,6 +210,7 @@ export function ExportReport() {
       
       // Load data from localStorage
       const caseData = JSON.parse(localStorage.getItem('legalCase') || '{}');
+      setCaseDetails(caseData);
       const simulationResults = JSON.parse(localStorage.getItem('simulationResults') || '[]');
       
       if (simulationResults.length === 0) {
@@ -65,7 +234,7 @@ export function ExportReport() {
       const result = await response.json();
       
       if (result.success) {
-        setMemorandum(result.memorandum);
+        setMemorandum(sanitizeMemorandum(result.memorandum));
         setBestStrategy(result.bestStrategy);
         
         // Parse memorandum into structured data for backward compatibility
@@ -95,85 +264,73 @@ export function ExportReport() {
   };
 
   const generatePDF = async () => {
+    const content = pdfContentRef.current;
+
+    if (!content) {
+      console.error('PDF content reference not found');
+      return;
+    }
+
     setIsGenerating(true);
     
     try {
-      const { jsPDF } = await import('jspdf');
-      
-      const doc = new jsPDF('p', 'mm', 'a4');
+      const [{ jsPDF }, html2canvasModule] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas'),
+      ]);
+      const html2canvas = html2canvasModule.default;
+
+      const canvas = await html2canvas(content, {
+        scale: 2,
+        useCORS: true,
+      });
+
+      const imageData = canvas.toDataURL('image/png');
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'letter',
+      });
+      doc.setFont('times', 'normal');
+      doc.setProperties({
+        title: 'Legal Strategy Memorandum',
+        subject: 'Comprehensive legal strategy generated by Legal Strategy Platform',
+      });
+
       const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 20;
-      const lineHeight = 7;
-      let yPosition = 30;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const marginX = 56;
+      const marginY = 64;
+      const printableWidth = pageWidth - marginX * 2;
+      const printableHeight = pageHeight - marginY * 2;
 
-      const addText = (text: string, x: number, y: number, maxWidth: number, fontSize = 11) => {
-        doc.setFontSize(fontSize);
-        const lines = doc.splitTextToSize(text, maxWidth);
-        doc.text(lines, x, y);
-        return lines.length * lineHeight;
-      };
+      const imgWidth = printableWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      // Title
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('LEGAL STRATEGY MEMORANDUM', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 15;
+      let heightLeft = imgHeight;
+      let position = marginY;
 
-      // Add AI-generated memorandum content
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      
-      const memorandumLines = memorandum.split('\n');
-      
-      for (const line of memorandumLines) {
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = 30;
-        }
-        
-        // Check if line is a heading (starts with number or all caps)
-        if (line.match(/^(I{1,3}V?|VI{0,3}|\d+\.)\s/) || line === line.toUpperCase() && line.length < 50 && line.length > 0) {
-          doc.setFontSize(12);
-          doc.setFont('helvetica', 'bold');
-          yPosition += addText(line, margin, yPosition, pageWidth - 2 * margin, 12);
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(11);
-        } else if (line.trim().length > 0) {
-          yPosition += addText(line, margin, yPosition, pageWidth - 2 * margin);
-        } else {
-          yPosition += lineHeight;
-        }
-      }
-      
-      // Add simulation summary
-      if (bestStrategy) {
-        if (yPosition > 240) {
-          doc.addPage();
-          yPosition = 30;
-        }
-        
-        yPosition += 10;
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text('SIMULATION RESULTS SUMMARY', margin, yPosition);
-        yPosition += 10;
-        
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        yPosition += addText(`Best Strategy: ${bestStrategy.title}`, margin, yPosition, pageWidth - 2 * margin, 10);
-        yPosition += addText(`Average Score: ${bestStrategy.averageScore.toFixed(1)}/10`, margin, yPosition, pageWidth - 2 * margin, 10);
-        yPosition += addText(`Defense Wins: ${bestStrategy.winsCount}/${bestStrategy.totalRuns} (${((bestStrategy.winsCount / bestStrategy.totalRuns) * 100).toFixed(0)}%)`, margin, yPosition, pageWidth - 2 * margin, 10);
+      doc.addImage(imageData, 'PNG', marginX, position, imgWidth, imgHeight);
+      heightLeft -= printableHeight;
+
+      while (heightLeft > 0) {
+        doc.addPage();
+        position = marginY - (imgHeight - heightLeft);
+        doc.addImage(imageData, 'PNG', marginX, position, imgWidth, imgHeight);
+        heightLeft -= printableHeight;
       }
 
-      // Footer
-      const totalPages = doc.internal.pages.length - 1;
-      for (let i = 1; i <= totalPages; i++) {
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i += 1) {
         doc.setPage(i);
+        doc.setFont('times', 'italic');
         doc.setFontSize(9);
+        doc.setTextColor(110);
         doc.text(
-          `Generated by Legal Strategy Platform - Page ${i} of ${totalPages}`, 
-          pageWidth / 2, 
-          280, 
+          `Confidential — Generated by Legal Strategy Platform · Page ${i} of ${totalPages}`,
+          pageWidth / 2,
+          pageHeight - 36,
           { align: 'center' }
         );
       }
@@ -275,38 +432,25 @@ export function ExportReport() {
               </CardHeader>
               
               <CardContent className="space-y-6">
-                <div className="pdf-preview legal-document p-6 bg-white border rounded-lg max-h-96 overflow-y-auto">
-                  <h1 className="text-center mb-8">Legal Strategy Memorandum</h1>
-                  
-                  {/* Display AI-generated memorandum */}
-                  <div className="memorandum-content whitespace-pre-wrap">
-                    {memorandum}
+                <div className="pdf-preview bg-white border rounded-lg max-h-96 overflow-y-auto">
+                  <div className="legal-document-container legal-document-preview">
+                    <LegalMemorandumContent />
                   </div>
-                  
-                  {/* Best Strategy Info */}
-                  {bestStrategy && (
-                    <div className="mt-8 p-4 bg-gray-50 border rounded-lg">
-                      <h3 className="font-semibold text-gray-900 mb-2">Simulation Results Summary</h3>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Best Strategy:</span>
-                          <p className="font-medium">{bestStrategy.title}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Average Score:</span>
-                          <p className="font-medium">{bestStrategy.averageScore.toFixed(1)}/10</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Defense Wins:</span>
-                          <p className="font-medium">{bestStrategy.winsCount}/{bestStrategy.totalRuns}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Success Rate:</span>
-                          <p className="font-medium">{((bestStrategy.winsCount / bestStrategy.totalRuns) * 100).toFixed(0)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                </div>
+
+                <div
+                  aria-hidden="true"
+                  ref={pdfContentRef}
+                  className="legal-document-container legal-document--pdf"
+                  style={{
+                    position: 'fixed',
+                    left: '-10000px',
+                    top: '-10000px',
+                    width: '768px',
+                    padding: 0,
+                  }}
+                >
+                  <LegalMemorandumContent />
                 </div>
               </CardContent>
             </Card>
