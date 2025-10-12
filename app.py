@@ -484,34 +484,66 @@ Your evaluation should be objective and based solely on the quality and effectiv
         )
         
         # Parse the evaluation result
-        evaluation = json.loads(response.choices[0].message.content)
-        score = evaluation.get('score', 5.0)
+        evaluation_raw = json.loads(response.choices[0].message.content)
         
-        # Log the evaluation for debugging
+        # Normalize evaluation payload
+        try:
+            raw_score = float(evaluation_raw.get('score', 5.0))
+        except (TypeError, ValueError):
+            raw_score = 5.0
+        score = max(0.0, min(10.0, raw_score))
+        
+        strengths = evaluation_raw.get('strengths', [])
+        if not isinstance(strengths, list):
+            strengths = [str(strengths)]
+        weaknesses = evaluation_raw.get('weaknesses', [])
+        if not isinstance(weaknesses, list):
+            weaknesses = [str(weaknesses)]
+        
+        evaluation = {
+            'score': score,
+            'rationale': evaluation_raw.get('rationale', ''),
+            'strengths': strengths,
+            'weaknesses': weaknesses
+        }
+        
+        # Log the evaluation for debugging/insight
         print(f"\n{'='*80}")
-        print(f"SIMULATION SCORING EVALUATION")
+        print("SIMULATION SCORING EVALUATION")
         print(f"{'='*80}")
         print(f"Strategy: {strategy_title} ({variation})")
-        print(f"Score: {score}/10")
-        print(f"Rationale: {evaluation.get('rationale', '')}")
-        print(f"Strengths: {', '.join(evaluation.get('strengths', []))}")
-        print(f"Weaknesses: {', '.join(evaluation.get('weaknesses', []))}")
+        print(f"Score: {evaluation['score']}/10")
+        print(f"Rationale: {evaluation['rationale']}")
+        print(f"Strengths: {', '.join(evaluation['strengths']) or 'None noted'}")
+        print(f"Weaknesses: {', '.join(evaluation['weaknesses']) or 'None noted'}")
         print(f"{'='*80}\n")
         
-        # Ensure score is within valid range
-        return max(0.0, min(10.0, score))
+        return evaluation
         
     except Exception as e:
         print(f"Error scoring simulation result with GPT-4o: {str(e)}")
         import traceback
         traceback.print_exc()
         # Fallback to simple winner-based scoring if GPT-4o fails
-        if 'defense' in winner.lower() or 'defendant' in winner.lower():
-            return 7.5
-        elif 'split' in winner.lower() or 'partial' in winner.lower():
-            return 5.0
+        fallback_score = 0.0
+        fallback_rationale = "Unable to retrieve detailed evaluation; applied fallback scoring."
+        winner_lower = winner.lower() if isinstance(winner, str) else ""
+        if 'defense' in winner_lower or 'defendant' in winner_lower:
+            fallback_score = 7.5
+            fallback_rationale = "Defense prevailed; assigning favorable fallback score."
+        elif 'split' in winner_lower or 'partial' in winner_lower:
+            fallback_score = 5.0
+            fallback_rationale = "Split decision; assigning neutral fallback score."
         else:
-            return 2.5
+            fallback_score = 2.5
+            fallback_rationale = "Plaintiff prevailed; assigning low fallback score."
+        
+        return {
+            'score': fallback_score,
+            'rationale': fallback_rationale,
+            'strengths': [],
+            'weaknesses': []
+        }
 
 @app.route('/api/run-simulations', methods=['POST'])
 def run_simulations():
@@ -676,7 +708,7 @@ Your decision should reflect your judicial tendencies, particularly your:
                             winner = output.get('winner', '')
                             
                             # Score the result using GPT-4o
-                            score = score_simulation_result(
+                            evaluation = score_simulation_result(
                                 defense_argument=defense_argument,
                                 plaintiff_argument=plaintiff_argument,
                                 judgment_summary=judgment_summary,
@@ -684,6 +716,7 @@ Your decision should reflect your judicial tendencies, particularly your:
                                 strategy_title=strategy_title,
                                 variation=variation
                             )
+                            score = evaluation.get('score', 0)
                             
                             run_result = {
                                 'runId': run_id,
@@ -693,7 +726,8 @@ Your decision should reflect your judicial tendencies, particularly your:
                                 'defenseArgument': defense_argument,
                                 'plaintiffArgument': plaintiff_argument,
                                 'judgmentSummary': judgment_summary,
-                                'sessionId': session_id
+                                'sessionId': session_id,
+                                'evaluation': evaluation
                             }
                             
                             strategy_runs.append(run_result)
@@ -912,4 +946,3 @@ def health_check():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-

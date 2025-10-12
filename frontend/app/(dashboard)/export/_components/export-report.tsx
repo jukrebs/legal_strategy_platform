@@ -235,18 +235,68 @@ export function ExportReport() {
       const result = await response.json();
       
       if (result.success) {
+        const strategyWithInsights = simulationResults.find(
+          (s: any) => s.strategyTitle === result.bestStrategy.title
+        ) || simulationResults[0];
+        
+        const runWithInsights = strategyWithInsights?.runs?.find(
+          (r: any) => {
+            const variationMatch = r.variation === result.bestRun.variation;
+            const scoreMatch = typeof result.bestRun.score === 'number'
+              ? Math.abs((r.score || 0) - result.bestRun.score) < 0.01
+              : true;
+            return variationMatch && scoreMatch;
+          }
+        ) || strategyWithInsights?.runs?.[0];
+        
+        const evaluation = runWithInsights?.evaluation || {};
+        const strengths: string[] = Array.isArray(evaluation?.strengths) ? evaluation.strengths : [];
+        const weaknesses: string[] = Array.isArray(evaluation?.weaknesses) ? evaluation.weaknesses : [];
+        const rationale = (evaluation?.rationale || '').trim() || (runWithInsights?.judgmentSummary || '');
+        const defenseSnippet = (() => {
+          const raw = (runWithInsights?.defenseArgument || '').split('\n').map((line: string) => line.trim()).filter(Boolean);
+          return raw[0] || '';
+        })();
+        
+        const supportingArguments = strengths.map((strength, idx) => ({
+          point: strength,
+          citations: [
+            strategyWithInsights?.strategyTitle
+              ? `${strategyWithInsights.strategyTitle} — ${runWithInsights?.variation || 'AI Simulation'}`
+              : `Simulation Insight ${idx + 1}`
+          ],
+          analysis: defenseSnippet ? `${defenseSnippet}` : strength
+        }));
+        
+        const riskBullet = weaknesses.length
+          ? `Key vulnerabilities flagged: ${weaknesses.join('; ')}.`
+          : '';
+        const riskAnalysis = [
+          `Based on ${result.bestStrategy.totalRuns} AI simulations, this strategy has a ${((result.bestStrategy.winsCount / result.bestStrategy.totalRuns) * 100).toFixed(0)}% success rate.`,
+          riskBullet
+        ].filter(Boolean).join(' ');
+        
         setMemorandum(sanitizeMemorandum(result.memorandum));
-        setBestStrategy(result.bestStrategy);
+        setBestStrategy({
+          ...result.bestStrategy,
+          rationale,
+          strengths,
+          weaknesses,
+          variation: result.bestRun.variation
+        });
         
         // Parse memorandum into structured data for backward compatibility
         const data: ExportData = {
           caseSummary: caseData.facts || 'Case facts not available',
           recommendedStrategy: {
             name: result.bestStrategy.title,
-            summary: `This strategy achieved an average score of ${result.bestStrategy.averageScore.toFixed(1)}/10 across ${result.bestStrategy.totalRuns} simulations, winning ${result.bestStrategy.winsCount} times.`
+            summary: [
+              `This strategy achieved an average score of ${result.bestStrategy.averageScore.toFixed(1)}/10 across ${result.bestStrategy.totalRuns} simulations, winning ${result.bestStrategy.winsCount} times.`,
+              rationale ? `Evaluator highlight: ${rationale}` : ''
+            ].filter(Boolean).join(' ')
           },
-          supportingArguments: [],
-          riskAnalysis: `Based on ${result.bestStrategy.totalRuns} AI simulations, this strategy has a ${((result.bestStrategy.winsCount / result.bestStrategy.totalRuns) * 100).toFixed(0)}% success rate.`,
+          supportingArguments,
+          riskAnalysis,
           keyPrecedents: []
         };
         
@@ -467,67 +517,85 @@ export function ExportReport() {
                   <BookOpen className="h-5 w-5 mr-2 text-black" />
                   Detailed Strategy Explanation
                 </CardTitle>
-                <CardDescription>
-                  Each argument supported by case law and evidence
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {exportData.supportingArguments?.map((arg, index) => (
-                  <div key={index} className="p-4 border border-gray-300 rounded-lg bg-gray-50">
-                    <h4 className="font-semibold text-gray-900 mb-3">{index + 1}. {arg.point}</h4>
-                    
-                    <div className="space-y-3">
-                      {/* Case Support */}
-                      <div className="bg-white border-l-4 border-black p-3 rounded">
-                        <div className="flex items-start space-x-2">
-                          <Scale className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-medium text-black mb-1">Case Support:</p>
-                            <p className="text-sm text-gray-700">
-                              <span className="font-medium italic">{arg.citations[0]}</span> establishes that {arg.analysis}
-                            </p>
+              <CardDescription>
+                Each argument supported by case law and evidence
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {exportData.supportingArguments && exportData.supportingArguments.length > 0 ? (
+                exportData.supportingArguments.map((arg, index) => {
+                  const primaryCitation = arg.citations?.[0] || 'Simulation Insight';
+                  return (
+                    <div key={index} className="p-4 border border-gray-300 rounded-lg bg-gray-50">
+                      <h4 className="font-semibold text-gray-900 mb-3">{index + 1}. {arg.point}</h4>
+                      
+                      <div className="space-y-3">
+                        {/* Case Support */}
+                        <div className="bg-white border-l-4 border-black p-3 rounded">
+                          <div className="flex items-start space-x-2">
+                            <Scale className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-medium text-black mb-1">What Worked:</p>
+                              <p className="text-sm text-gray-700">
+                                <span className="font-medium italic">{primaryCitation}</span> demonstrated how this angle persuaded the judge in the simulation.
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Evidence Support */}
-                      <div className="bg-white border-l-4 border-gray-600 p-3 rounded">
-                        <div className="flex items-start space-x-2">
-                          <FileCheck className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-medium text-gray-900 mb-1">Evidence Required:</p>
-                            <p className="text-sm text-gray-700">
-                              {index === 0 
-                                ? 'Product packaging, ingredient lists, and marketing materials demonstrating back-panel disclosures'
-                                : index === 1
-                                ? 'Complete product labeling showing context that cures any ambiguity'
-                                : 'Pricing analysis showing no premium charged for challenged claims'}
-                            </p>
+                        {/* Evidence Support */}
+                        <div className="bg-white border-l-4 border-gray-600 p-3 rounded">
+                          <div className="flex items-start space-x-2">
+                            <FileCheck className="h-4 w-4 text-gray-700 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-medium text-gray-900 mb-1">Evidence to Elevate:</p>
+                              <p className="text-sm text-gray-700">
+                                Bolster this strength with exhibits and testimony that mirror the successful framing from the run.
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Highlighted Snippet */}
-                      <div className="bg-gray-100 border-l-4 border-black p-3 rounded">
-                        <div className="flex items-start space-x-2">
-                          <Quote className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-medium text-black mb-1">Key Passage:</p>
-                            <p className="text-sm text-gray-700 italic">
-                              "{index === 0 
-                                ? 'A reasonable consumer does not view a product label in isolation, but rather considers the product as a whole, including all available information.'
-                                : index === 1
-                                ? 'Context provided by other parts of the label can cure any misleading impression created by isolated statements.'
-                                : 'Without evidence of a price premium, plaintiffs cannot establish they suffered economic harm from the alleged misrepresentation.'}"
-                            </p>
+                        {/* Highlighted Snippet */}
+                        <div className="bg-gray-100 border-l-4 border-black p-3 rounded">
+                          <div className="flex items-start space-x-2">
+                            <Quote className="h-4 w-4 text-black flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-medium text-black mb-1">Key Passage:</p>
+                              <p className="text-sm text-gray-700 italic">
+                                "{arg.analysis || bestStrategy?.rationale || 'The simulation underscored this argument as a decisive moment.'}"
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                  );
+                })
+              ) : (
+                <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-white text-sm text-gray-600">
+                  Run the digital courtroom simulation to populate argument-level insights ready for export.
+                </div>
+              )}
+
+              {bestStrategy?.weaknesses?.length > 0 && (
+                <div className="p-4 border border-gray-200 rounded-lg bg-white">
+                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <AlertCircle className="h-4 w-4 text-gray-700 mr-2" />
+                    Watchouts Identified by Simulation Judge
+                  </h4>
+                  <ul className="space-y-2 text-sm text-gray-700">
+                    {bestStrategy.weaknesses.map((weakness: string, idx: number) => (
+                      <li key={`weakness-${idx}`} className="flex items-start space-x-2">
+                        <AlertCircle className="h-3 w-3 text-gray-500 mt-0.5" />
+                        <span>{weakness}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
             {/* Further Actions */}
             <Card className="legal-card legal-shadow">

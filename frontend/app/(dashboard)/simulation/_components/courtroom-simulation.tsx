@@ -81,6 +81,11 @@ interface StrategyRun {
   variation: string;
   rounds: SimulationRound[];
   averageScore: number;
+  evaluation?: {
+    rationale: string;
+    strengths: string[];
+    weaknesses: string[];
+  };
 }
 
 export function CourtroomSimulation() {
@@ -269,10 +274,55 @@ export function CourtroomSimulation() {
                 // Transform and add the run result immediately
                 const run = data.run;
                 const strategyId = data.strategyId;
+                const strengths = Array.isArray(run.evaluation?.strengths) ? (run.evaluation?.strengths as string[]) : [];
+                const weaknesses = Array.isArray(run.evaluation?.weaknesses) ? (run.evaluation?.weaknesses as string[]) : [];
+                
+                const normalizedRationale = (run.evaluation?.rationale || '').trim();
+                const evaluationRationale = normalizedRationale || run.judgmentSummary || '';
+                
+                const positiveWeight = strengths.length ? Math.min(0.45, 1 / strengths.length) : 0.3;
+                const negativeWeight = weaknesses.length ? Math.min(0.45, 1 / weaknesses.length) : 0.3;
+                const hasModelInsights = strengths.length > 0 || weaknesses.length > 0;
+                
+                const featureAttributions = hasModelInsights
+                  ? [
+                      ...strengths.map((factor) => ({
+                        factor,
+                        weight: positiveWeight,
+                        impact: 'Strength'
+                      })),
+                      ...weaknesses.map((factor) => ({
+                        factor,
+                        weight: -negativeWeight,
+                        impact: 'Weakness'
+                      }))
+                    ]
+                  : [
+                      { 
+                        factor: 'Legal Precedent', 
+                        weight: run.score >= 7 ? 0.3 : -0.2, 
+                        impact: run.score >= 7 ? 'Strength' : 'Weakness' 
+                      },
+                      { 
+                        factor: 'Factual Support', 
+                        weight: run.score >= 7 ? 0.25 : -0.15, 
+                        impact: run.score >= 7 ? 'Strength' : 'Weakness' 
+                      },
+                      { 
+                        factor: 'Judicial Philosophy Alignment', 
+                        weight: run.score >= 5 ? 0.2 : -0.25, 
+                        impact: run.score >= 5 ? 'Strength' : 'Weakness' 
+                      }
+                    ];
                 
                 const transformedRun: StrategyRun = {
                   runId: run.runId,
                   variation: run.variation,
+                  evaluation: {
+                    rationale: evaluationRationale,
+                    strengths,
+                    weaknesses
+                  },
                   rounds: [{
                     round: 1,
                     defenseArgument: run.defenseArgument || 'Defense argument not available',
@@ -280,24 +330,8 @@ export function CourtroomSimulation() {
                     judgeResponse: run.judgmentSummary || 'No judgment summary',
                     judgeScoring: {
                       score: run.score || 0,
-                      rationale: run.judgmentSummary || '',
-                      featureAttributions: [
-                        { 
-                          factor: 'Legal Precedent', 
-                          weight: run.score >= 7 ? 0.3 : -0.2, 
-                          impact: run.score >= 7 ? 'Positive' : 'Negative' 
-                        },
-                        { 
-                          factor: 'Factual Support', 
-                          weight: run.score >= 7 ? 0.25 : -0.15, 
-                          impact: run.score >= 7 ? 'Positive' : 'Negative' 
-                        },
-                        { 
-                          factor: 'Judicial Philosophy Alignment', 
-                          weight: run.score >= 5 ? 0.2 : -0.25, 
-                          impact: run.score >= 5 ? 'Positive' : 'Negative' 
-                        }
-                      ]
+                      rationale: evaluationRationale,
+                      featureAttributions
                     }
                   }],
                   averageScore: run.score || 0
@@ -543,11 +577,13 @@ export function CourtroomSimulation() {
                                               <div>
                                                 <p className="text-xs font-medium text-black mb-1">Key Moment:</p>
                                                 <p className="text-sm text-gray-800">
-                                                  {round.judgeScoring.score >= 7 
-                                                    ? "Judge found the precedent cited particularly persuasive and noted strong factual alignment."
-                                                    : round.judgeScoring.score >= 5
-                                                    ? "Judge acknowledged the argument but expressed concerns about distinguishing prior cases."
-                                                    : "Judge was skeptical of the argument and highlighted weaknesses in the legal reasoning."}
+                                                  {(run.evaluation?.rationale || '').trim() ||
+                                                    (round.judgeScoring.rationale || '').trim() ||
+                                                    (round.judgeScoring.score >= 7 
+                                                      ? "Judge found the precedent cited particularly persuasive and noted strong factual alignment."
+                                                      : round.judgeScoring.score >= 5
+                                                      ? "Judge acknowledged the argument but expressed concerns about distinguishing prior cases."
+                                                      : "Judge was skeptical of the argument and highlighted weaknesses in the legal reasoning.")}
                                                 </p>
                                               </div>
                                             </div>
@@ -574,6 +610,38 @@ export function CourtroomSimulation() {
                                               </div>
                                             ))}
                                           </div>
+
+                                          {(run.evaluation?.strengths?.length ?? 0) > 0 && (
+                                            <div className="mt-4 space-y-2">
+                                              <h5 className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                                                What Landed Well
+                                              </h5>
+                                              <div className="space-y-2">
+                                                {run.evaluation?.strengths?.map((strength, idx) => (
+                                                  <div key={`strength-${idx}`} className="flex items-start space-x-2 text-sm text-gray-700">
+                                                    <CheckCircle className="h-3 w-3 text-black mt-0.5" />
+                                                    <span>{strength}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {(run.evaluation?.weaknesses?.length ?? 0) > 0 && (
+                                            <div className="mt-3 space-y-2">
+                                              <h5 className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                                                Where It Faltered
+                                              </h5>
+                                              <div className="space-y-2">
+                                                {run.evaluation?.weaknesses?.map((weakness, idx) => (
+                                                  <div key={`weakness-${idx}`} className="flex items-start space-x-2 text-sm text-gray-700">
+                                                    <AlertCircle className="h-3 w-3 text-gray-600 mt-0.5" />
+                                                    <span>{weakness}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
                                         </CardContent>
                                       </Card>
                                     </div>
