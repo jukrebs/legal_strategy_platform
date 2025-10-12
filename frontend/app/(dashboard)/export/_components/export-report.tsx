@@ -22,6 +22,7 @@ import {
   GitBranch,
   Quote
 } from 'lucide-react';
+import { LegalLoading } from '@/components/ui/legal-loading';
 
 export function ExportReport() {
   const router = useRouter();
@@ -222,6 +223,14 @@ export function ExportReport() {
     }
   };
 
+  const loadingMessages = [
+    "Analyzing simulation outcomes…",
+    "Synthesizing legal recommendations…",
+    "Drafting strategy memorandum…",
+    "Compiling precedent analysis…",
+    "Finalizing comprehensive report…"
+  ];
+
   if (isLoadingMemo || !exportData) {
     return (
       <>
@@ -231,11 +240,7 @@ export function ExportReport() {
           description="Generating AI-powered legal strategy memorandum"
         />
         <div className="max-w-4xl mx-auto p-6">
-          <div className="text-center py-12">
-            <div className="animate-spin h-12 w-12 border-4 border-black border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-gray-600">Analyzing simulation results and generating strategy memorandum...</p>
-            <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
-          </div>
+          <LegalLoading messages={loadingMessages} duration={12500} />
         </div>
       </>
     );
