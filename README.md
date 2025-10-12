@@ -18,8 +18,19 @@ legal_strategy_platform/
 - npm package manager
 - PostgreSQL database (optional, for full features)
 
-### CourtListener Dataset (Optional)
+### Data Sources
 
+The platform supports three ways to get case data:
+
+#### Option 1: Use Pre-generated Data (Recommended for Quick Start)
+The `data/` directory contains ready-to-use JSON files:
+- `Disorderly_conduct_cases.json` - Disorderly conduct cases
+- `reckless_driving_cases.json` - Reckless driving cases  
+- `judge_characteristics.json` - Judge behavioral profiles
+- `stateattorney_characteristics.json` - State attorney profiles
+- `syllabi_by_judge.json` - Case syllabi organized by judge
+
+#### Option 2: Generate Data from CourtListener API
 1. **Activate the hackathon Conda environment**
    ```bash
    conda activate hackathon
@@ -30,15 +41,20 @@ legal_strategy_platform/
    export COURTLISTENER_API_TOKEN=your_token_here
    ```
 
-3. **Generate a dataset for specific case types and attorney names**
+3. **Run the data collection scripts**
    ```bash
-   python backend/datasets/courtlistener_dataset.py \
-     --case-types Civil \
-     --lawyers "Jane Doe","John Smith" \
-     --output data/courtlistener_cases.csv
+   # Generate disorderly conduct cases
+   python data/collection/CasesAPI.py
+   
+   # Generate judge profiles and dockets
+   python data/collection/JudgeAPI.py
+   
+   # Process syllabi by judge
+   python data/collection/Syllabus.py
    ```
 
-   The script supports comma-separated values, optional `--max-records` limits, and the `--include-attorney-details` flag to fetch expanded attorney metadata.
+#### Option 3: Custom Dataset Generation
+Modify the scripts in `data/collection/` to fetch different case types, judges, or date ranges by updating the search parameters in each script.
 
 ### Weaviate Case Embeddings
 
