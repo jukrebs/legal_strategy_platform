@@ -75,20 +75,26 @@ def test_simulation():
                     
                     for run in strategy_result['runs']:
                         print(f"\n  Run: {run['variation']}")
-                        print(f"  Score: {run.get('score', 0):.2f}/10")
+                        print(f"  GPT-4o Score: {run.get('score', 0):.2f}/10")
                         print(f"  Winner: {run.get('winner', 'Unknown')}")
                         
                         if 'error' in run:
                             print(f"  ❌ Error: {run['error']}")
                         else:
                             print(f"\n  Defense Argument:")
-                            print(f"  {run.get('defenseArgument', 'N/A')[:200]}...")
+                            print(f"  {run.get('defenseArgument', 'N/A')[:300]}...")
                             
                             print(f"\n  Plaintiff Argument:")
-                            print(f"  {run.get('plaintiffArgument', 'N/A')[:200]}...")
+                            print(f"  {run.get('plaintiffArgument', 'N/A')[:300]}...")
                             
                             print(f"\n  Judgment Summary:")
-                            print(f"  {run.get('judgmentSummary', 'N/A')[:200]}...")
+                            print(f"  {run.get('judgmentSummary', 'N/A')[:300]}...")
+                            
+                            print(f"\n  ✨ GPT-4o evaluated this simulation based on:")
+                            print(f"     - Legal reasoning quality")
+                            print(f"     - Precedent application effectiveness")
+                            print(f"     - Persuasiveness and strategic coherence")
+                            print(f"     - Judge's receptivity to arguments")
                         
                         print(f"\n  {'-' * 76}")
                 

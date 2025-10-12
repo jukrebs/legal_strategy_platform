@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response, stream_with_context
 from flask_cors import CORS
 import json
 import os
@@ -380,49 +380,184 @@ def upload_case():
             'error': str(e)
         }), 500
 
+def score_simulation_result(defense_argument, plaintiff_argument, judgment_summary, winner, strategy_title, variation):
+    """
+    Use GPT-4o to score the effectiveness of the lawyer's argumentation strategy
+    Returns a score from 0-10 based on how well the strategy worked out
+    """
+    try:
+        # Build comprehensive prompt for GPT-4o to evaluate the simulation
+        evaluation_prompt = f"""
+You are an expert legal analyst evaluating the effectiveness of a defense lawyer's argumentation strategy in a motion to dismiss hearing simulation.
+
+STRATEGY USED:
+Strategy: {strategy_title}
+Variation: {variation}
+
+COURTROOM SIMULATION TRANSCRIPT:
+
+Defense Attorney's Argument:
+{defense_argument}
+
+State Attorney's Argument:
+{plaintiff_argument}
+
+Judge's Judgment:
+{judgment_summary}
+
+Final Decision: {winner}
+
+---
+
+EVALUATION TASK:
+Analyze the defense attorney's argumentation strategy and rate its effectiveness on a scale of 0-10, where:
+- 0-2: Very Poor - Strategy failed completely, arguments were ineffective or counterproductive
+- 3-4: Poor - Strategy had major weaknesses, arguments were not persuasive
+- 5-6: Moderate - Strategy had some merit but significant gaps in argumentation
+- 7-8: Good - Strategy was effective with strong legal reasoning and persuasive arguments
+- 9-10: Excellent - Strategy was highly effective with exceptional legal reasoning and compelling arguments
+
+Consider the following factors:
+1. **Legal Reasoning Quality**: How sound and well-structured were the legal arguments?
+2. **Precedent Application**: How effectively did the defense use case law and legal precedent?
+3. **Persuasiveness**: How compelling and convincing were the arguments to the judge?
+4. **Response to Opposition**: How well did the defense address or anticipate the plaintiff's arguments?
+5. **Strategic Coherence**: Did the defense maintain a consistent and logical strategy throughout?
+6. **Judge's Receptivity**: How did the judge respond to the defense arguments based on the judgment?
+7. **Outcome Alignment**: Did the strategy contribute to a favorable outcome for the defense?
+
+Provide your response in JSON format with:
+- "score": A number from 0-10 (can include decimals like 7.5)
+- "rationale": A brief 2-3 sentence explanation of your score
+- "strengths": List of 2-3 key strengths in the argumentation
+- "weaknesses": List of 2-3 key weaknesses or areas for improvement
+
+Your evaluation should be objective and based solely on the quality and effectiveness of the legal argumentation, not just the final outcome.
+"""
+        
+        # Call GPT-4o for evaluation
+        response = client.chat.completions.create(
+            model="gpt-4o-2024-08-06",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert legal analyst who evaluates the effectiveness of legal arguments and courtroom strategies. You provide detailed, objective assessments based on legal reasoning quality, persuasiveness, and strategic coherence."
+                },
+                {
+                    "role": "user",
+                    "content": evaluation_prompt
+                }
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "strategy_evaluation",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "score": {
+                                "type": "number",
+                                "description": "Score from 0-10 evaluating strategy effectiveness"
+                            },
+                            "rationale": {
+                                "type": "string",
+                                "description": "Brief explanation of the score"
+                            },
+                            "strengths": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Key strengths in the argumentation"
+                            },
+                            "weaknesses": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Key weaknesses or areas for improvement"
+                            }
+                        },
+                        "required": ["score", "rationale", "strengths", "weaknesses"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            temperature=0.3  # Lower temperature for more consistent scoring
+        )
+        
+        # Parse the evaluation result
+        evaluation = json.loads(response.choices[0].message.content)
+        score = evaluation.get('score', 5.0)
+        
+        # Log the evaluation for debugging
+        print(f"\n{'='*80}")
+        print(f"SIMULATION SCORING EVALUATION")
+        print(f"{'='*80}")
+        print(f"Strategy: {strategy_title} ({variation})")
+        print(f"Score: {score}/10")
+        print(f"Rationale: {evaluation.get('rationale', '')}")
+        print(f"Strengths: {', '.join(evaluation.get('strengths', []))}")
+        print(f"Weaknesses: {', '.join(evaluation.get('weaknesses', []))}")
+        print(f"{'='*80}\n")
+        
+        # Ensure score is within valid range
+        return max(0.0, min(10.0, score))
+        
+    except Exception as e:
+        print(f"Error scoring simulation result with GPT-4o: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Fallback to simple winner-based scoring if GPT-4o fails
+        if 'defense' in winner.lower() or 'defendant' in winner.lower():
+            return 7.5
+        elif 'split' in winner.lower() or 'partial' in winner.lower():
+            return 5.0
+        else:
+            return 2.5
+
 @app.route('/api/run-simulations', methods=['POST'])
 def run_simulations():
-    """Run multiple simulations for each strategy using n8n webhook"""
-    try:
-        data = request.json
-        strategies = data.get('strategies', [])
-        case_facts = data.get('caseFacts', '')
-        extracted_text = data.get('extractedText', '')
-        judge_name = data.get('judgeName', '')
-        state_attorney_name = data.get('stateAttorneyName', '')
-        
-        if not strategies:
-            return jsonify({
-                'success': False,
-                'error': 'No strategies provided'
-            }), 400
-        
-        # Load judge and state attorney characteristics
-        judge_chars = load_judge_characteristics()
-        state_attorney_chars = load_state_attorney_characteristics()
-        
-        # n8n webhook URL
-        n8n_url = "https://juliuspor.app.n8n.cloud/webhook/bfda8a16-0260-4297-ab36-a707e54323c2"
-        
-        # Store results
-        simulation_results = []
-        
-        # For each strategy, run 3 simulations
-        for strategy_idx, strategy in enumerate(strategies):
-            strategy_id = strategy.get('id', f'strategy-{strategy_idx + 1}')
-            strategy_title = strategy.get('title', '')
+    """Run multiple simulations for each strategy using n8n webhook with streaming results"""
+    data = request.json
+    strategies = data.get('strategies', [])
+    case_facts = data.get('caseFacts', '')
+    extracted_text = data.get('extractedText', '')
+    judge_name = data.get('judgeName', '')
+    state_attorney_name = data.get('stateAttorneyName', '')
+    
+    if not strategies:
+        return jsonify({
+            'success': False,
+            'error': 'No strategies provided'
+        }), 400
+    
+    def generate():
+        """Generator function to stream simulation results"""
+        try:
+            # Load judge and state attorney characteristics
+            judge_chars = load_judge_characteristics()
+            state_attorney_chars = load_state_attorney_characteristics()
             
-            strategy_runs = []
+            # n8n webhook URL
+            n8n_url = "https://juliuspor.app.n8n.cloud/webhook/bfda8a16-0260-4297-ab36-a707e54323c2"
             
-            # Run 3 simulations per strategy
-            for run_idx in range(3):
-                run_id = f"{strategy_id}-run-{run_idx + 1}"
-                variation = "Standard Approach" if run_idx == 0 else \
-                           "Aggressive Variant" if run_idx == 1 else \
-                           "Conservative Variant"
+            # Store results for final summary
+            simulation_results = []
+            
+            # For each strategy, run 3 simulations
+            for strategy_idx, strategy in enumerate(strategies):
+                strategy_id = strategy.get('id', f'strategy-{strategy_idx + 1}')
+                strategy_title = strategy.get('title', '')
                 
-                # Build the case context with all relevant information
-                case_context = f"""
+                strategy_runs = []
+                
+                # Run 3 simulations per strategy
+                for run_idx in range(3):
+                    run_id = f"{strategy_id}-run-{run_idx + 1}"
+                    variation = "Standard Approach" if run_idx == 0 else \
+                               "Aggressive Variant" if run_idx == 1 else \
+                               "Conservative Variant"
+                    
+                    # Build the case context with all relevant information
+                    case_context = f"""
 Case Facts:
 {case_facts}
 
@@ -517,87 +652,151 @@ Your decision should reflect your judicial tendencies, particularly your:
 - Low openness to novel arguments
 """
 
-                # Call n8n webhook
+                    # Call n8n webhook
                 try:
                     session_id = f"session-{uuid.uuid4()}"
-                    
+                        
                     payload = {
                         "lawyer_prompt": lawyer_prompt,
                         "judge_prompt": judge_prompt,
                         "opponent_prompt": opponent_prompt,
                         "session_id": session_id
                     }
-                    
+                        
                     response = requests.post(n8n_url, json=payload, timeout=120)
-                    
+                        
                     if response.status_code == 200:
                         result = response.json()
                         output = result.get('output', {})
-                        
-                        # Determine winner and score
+                            
+                        # Get the chat history components
+                        defense_argument = output.get('defense_argument', '')
+                        plaintiff_argument = output.get('plaintiff_argument', '')
+                        judgment_summary = output.get('judgment_summary', '')
                         winner = output.get('winner', '')
-                        score = 8.0 if 'defense' in winner.lower() or 'defendant' in winner.lower() else \
-                               5.0 if 'split' in winner.lower() or 'partial' in winner.lower() else \
-                               2.0
-                        
+                            
+                        # Score the result using GPT-4o
+                        score = score_simulation_result(
+                            defense_argument=defense_argument,
+                            plaintiff_argument=plaintiff_argument,
+                            judgment_summary=judgment_summary,
+                            winner=winner,
+                            strategy_title=strategy_title,
+                            variation=variation
+                        )
+                            
                         run_result = {
                             'runId': run_id,
                             'variation': variation,
                             'winner': winner,
                             'score': score,
-                            'defenseArgument': output.get('defense_argument', ''),
-                            'plaintiffArgument': output.get('plaintiff_argument', ''),
-                            'judgmentSummary': output.get('judgment_summary', ''),
+                            'defenseArgument': defense_argument,
+                            'plaintiffArgument': plaintiff_argument,
+                            'judgmentSummary': judgment_summary,
                             'sessionId': session_id
                         }
-                        
+                            
                         strategy_runs.append(run_result)
+                            
+                        # Stream this result immediately to the frontend
+                        stream_data = {
+                            'type': 'run_complete',
+                            'strategyId': strategy_id,
+                            'strategyTitle': strategy_title,
+                            'run': run_result
+                        }
+                        yield f"data: {json.dumps(stream_data)}\n\n"
+                            
                     else:
                         print(f"n8n webhook error: {response.status_code} - {response.text}")
-                        strategy_runs.append({
+                        error_result = {
                             'runId': run_id,
                             'variation': variation,
                             'error': f"API error: {response.status_code}",
                             'score': 0
-                        })
-                
+                        }
+                        strategy_runs.append(error_result)
+                            
+                        # Stream error result
+                        stream_data = {
+                            'type': 'run_complete',
+                            'strategyId': strategy_id,
+                            'strategyTitle': strategy_title,
+                            'run': error_result
+                        }
+                        yield f"data: {json.dumps(stream_data)}\n\n"
+                    
                 except Exception as e:
                     print(f"Error calling n8n webhook: {str(e)}")
-                    strategy_runs.append({
+                    error_result = {
                         'runId': run_id,
                         'variation': variation,
                         'error': str(e),
                         'score': 0
-                    })
-                
+                    }
+                    strategy_runs.append(error_result)
+                        
+                    # Stream error result
+                    stream_data = {
+                        'type': 'run_complete',
+                        'strategyId': strategy_id,
+                        'strategyTitle': strategy_title,
+                        'run': error_result
+                    }
+                    yield f"data: {json.dumps(stream_data)}\n\n"
+                    
                 # Small delay between calls to avoid overwhelming the API
                 time.sleep(2)
+                
+                # Calculate average score for this strategy after all runs complete
+                valid_scores = [r['score'] for r in strategy_runs if 'score' in r and r['score'] > 0]
+                average_score = sum(valid_scores) / len(valid_scores) if valid_scores else 0
+                
+                strategy_result = {
+                    'strategyId': strategy_id,
+                    'strategyTitle': strategy_title,
+                    'runs': strategy_runs,
+                    'averageScore': average_score,
+                    'winsCount': len([r for r in strategy_runs if r.get('score', 0) >= 7])
+                }
+                simulation_results.append(strategy_result)
+                
+                # Stream strategy completion
+                stream_data = {
+                    'type': 'strategy_complete',
+                    'strategy': strategy_result
+                }
+                yield f"data: {json.dumps(stream_data)}\n\n"
             
-            # Calculate average score for this strategy
-            valid_scores = [r['score'] for r in strategy_runs if 'score' in r and r['score'] > 0]
-            average_score = sum(valid_scores) / len(valid_scores) if valid_scores else 0
+            # Send final completion message
+            final_data = {
+                'type': 'complete',
+                'success': True,
+                'results': simulation_results
+            }
+            yield f"data: {json.dumps(final_data)}\n\n"
             
-            simulation_results.append({
-                'strategyId': strategy_id,
-                'strategyTitle': strategy_title,
-                'runs': strategy_runs,
-                'averageScore': average_score,
-                'winsCount': len([r for r in strategy_runs if r.get('score', 0) >= 7])
-            })
-        
-        return jsonify({
-            'success': True,
-            'results': simulation_results
-        })
-        
-    except Exception as e:
-        print(f"Error running simulations: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        except Exception as e:
+            print(f"Error running simulations: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            error_data = {
+                'type': 'error',
+                'success': False,
+                'error': str(e)
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+    
+    # Return streaming response with SSE headers
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive'
+        }
+    )
 
 @app.route('/api/generate-memorandum', methods=['POST'])
 def generate_memorandum():

@@ -209,9 +209,13 @@ export function CourtroomSimulation() {
       
       console.log('Sending strategies to backend:', strategiesForBackend);
       
-      setProgress(10);
+      setProgress(5);
       
-      // Call backend API to run simulations
+      const totalRuns = acceptedStrategies.length * 3;
+      let completedRuns = 0;
+      const allResults: any[] = [];
+      
+      // Call backend API to run simulations with streaming
       const response = await fetch('http://localhost:5000/api/run-simulations', {
         method: 'POST',
         headers: {
@@ -226,60 +230,109 @@ export function CourtroomSimulation() {
         }),
       });
       
-      setProgress(50);
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        // Transform backend results to frontend format
-        const newStrategyRuns: Record<string, StrategyRun[]> = {};
-        
-        result.results.forEach((strategyResult: any) => {
-          const runs: StrategyRun[] = strategyResult.runs.map((run: any) => ({
-            runId: run.runId,
-            variation: run.variation,
-            rounds: [{
-              round: 1,
-              defenseArgument: run.defenseArgument || 'Defense argument not available',
-              oppositionResponse: run.plaintiffArgument || 'Plaintiff argument not available',
-              judgeResponse: run.judgmentSummary || 'No judgment summary',
-              judgeScoring: {
-                score: run.score || 0,
-                rationale: run.judgmentSummary || '',
-                featureAttributions: [
-                  { 
-                    factor: 'Legal Precedent', 
-                    weight: run.score >= 7 ? 0.3 : -0.2, 
-                    impact: run.score >= 7 ? 'Positive' : 'Negative' 
-                  },
-                  { 
-                    factor: 'Factual Support', 
-                    weight: run.score >= 7 ? 0.25 : -0.15, 
-                    impact: run.score >= 7 ? 'Positive' : 'Negative' 
-                  },
-                  { 
-                    factor: 'Judicial Philosophy Alignment', 
-                    weight: run.score >= 5 ? 0.2 : -0.25, 
-                    impact: run.score >= 5 ? 'Positive' : 'Negative' 
-                  }
-                ]
-              }
-            }],
-            averageScore: run.score || 0
-          }));
-          
-          newStrategyRuns[strategyResult.strategyId] = runs;
-        });
-        
-        setStrategyRuns(newStrategyRuns);
-        setProgress(100);
-        
-        // Save simulation results to localStorage for export page
-        localStorage.setItem('simulationResults', JSON.stringify(result.results));
-        console.log('Simulation results saved to localStorage');
-      } else {
-        alert(`Simulation failed: ${result.error}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      // Read the streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      if (!reader) {
+        throw new Error('Response body is not readable');
+      }
+      
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'run_complete') {
+                // Update state incrementally as each run completes
+                completedRuns++;
+                const progressPercent = (completedRuns / totalRuns) * 90 + 5; // 5-95%
+                setProgress(Math.round(progressPercent));
+                
+                // Transform and add the run result immediately
+                const run = data.run;
+                const strategyId = data.strategyId;
+                
+                const transformedRun: StrategyRun = {
+                  runId: run.runId,
+                  variation: run.variation,
+                  rounds: [{
+                    round: 1,
+                    defenseArgument: run.defenseArgument || 'Defense argument not available',
+                    oppositionResponse: run.plaintiffArgument || 'Plaintiff argument not available',
+                    judgeResponse: run.judgmentSummary || 'No judgment summary',
+                    judgeScoring: {
+                      score: run.score || 0,
+                      rationale: run.judgmentSummary || '',
+                      featureAttributions: [
+                        { 
+                          factor: 'Legal Precedent', 
+                          weight: run.score >= 7 ? 0.3 : -0.2, 
+                          impact: run.score >= 7 ? 'Positive' : 'Negative' 
+                        },
+                        { 
+                          factor: 'Factual Support', 
+                          weight: run.score >= 7 ? 0.25 : -0.15, 
+                          impact: run.score >= 7 ? 'Positive' : 'Negative' 
+                        },
+                        { 
+                          factor: 'Judicial Philosophy Alignment', 
+                          weight: run.score >= 5 ? 0.2 : -0.25, 
+                          impact: run.score >= 5 ? 'Positive' : 'Negative' 
+                        }
+                      ]
+                    }
+                  }],
+                  averageScore: run.score || 0
+                };
+                
+                // Update strategy runs incrementally
+                setStrategyRuns(prev => ({
+                  ...prev,
+                  [strategyId]: [...(prev[strategyId] || []), transformedRun]
+                }));
+                
+                console.log(`Run completed: ${run.runId} (${completedRuns}/${totalRuns})`);
+                
+              } else if (data.type === 'strategy_complete') {
+                console.log(`Strategy completed: ${data.strategy.strategyTitle}`);
+                
+              } else if (data.type === 'complete') {
+                console.log('All simulations completed!');
+                allResults.push(...data.results);
+                setProgress(100);
+                
+                // Save simulation results to localStorage for export page
+                localStorage.setItem('simulationResults', JSON.stringify(data.results));
+                console.log('Simulation results saved to localStorage');
+                
+              } else if (data.type === 'error') {
+                throw new Error(data.error || 'Simulation failed');
+              }
+            } catch (parseError) {
+              console.error('Error parsing SSE data:', parseError);
+            }
+          }
+        }
+      }
+      
     } catch (error) {
       console.error('Error running simulations:', error);
       alert('Failed to run simulations. Please check the console for details.');
@@ -561,9 +614,11 @@ export function CourtroomSimulation() {
             Back to Digital Twins
           </Button>
           <div className="text-sm text-gray-600">
-            {Object.keys(strategyRuns).length > 0 
-              ? `${Object.values(strategyRuns).flat().length} simulation runs completed` 
-              : 'Simulation not started'}
+            {isRunning 
+              ? 'Running simulations...' 
+              : Object.keys(strategyRuns).length > 0 
+                ? `${Object.values(strategyRuns).flat().length} simulation runs completed` 
+                : 'Ready to simulate'}
           </div>
           {Object.keys(strategyRuns).length > 0 && !isRunning && (
             <Button 
