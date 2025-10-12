@@ -879,87 +879,164 @@ export function ExportReport() {
             </Card>
           </div>
 
-          {alternativeStrategies.length > 0 && (
-            <Card className="legal-card legal-shadow">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg text-black">Other viable options</CardTitle>
-                <CardDescription>Strong contenders worth keeping in reserve</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {alternativeStrategies.map((strategy) => (
-                  <div
-                    key={strategy.id}
-                    className="flex items-center justify-between rounded-lg border border-gray-200 p-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{strategy.title}</p>
-                      <p className="text-xs text-gray-500">
-                        {strategy.averageScore.toFixed(1)}/10 avg • {Math.round(strategy.successRate * 100)}% success
-                      </p>
-                    </div>
-                    {strategy.bestRun?.variation && (
-                      <Badge variant="outline">{strategy.bestRun.variation}</Badge>
-                    )}
+          {/* Recommended Strategy - Performance Analysis */}
+          {bestStrategySnapshot && bestStrategySnapshot.totalRuns > 0 && (
+            <Card className="legal-card legal-shadow border-2 border-black">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center text-black">
+                      <Scale className="h-5 w-5 mr-2 text-black" />
+                      Recommended Strategy: {bestStrategySnapshot.title}
+                    </CardTitle>
+                    <CardDescription>
+                      Comparative analysis of three tactical approaches
+                    </CardDescription>
                   </div>
-                ))}
+                  <Badge className="bg-black text-white border-black">Primary Recommendation</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {strategySummaries[0]?.bestRun && (() => {
+                  const strategy = strategySummaries[0];
+                  const allRuns = JSON.parse(localStorage.getItem('simulationResults') || '[]')
+                    .find((s: any) => s.strategyTitle === strategy.title)?.runs || [];
+                  
+                  // Sort runs by score descending
+                  const sortedRuns = [...allRuns].sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
+                  
+                  return sortedRuns.map((run: any, index: number) => {
+                    const variationName = run.variation || `Approach ${index + 1}`;
+                    const score = run.score || 0;
+                    const isWinner = score >= 7;
+                    const defensePreview = (run.defenseArgument || '')
+                      .split('\n')
+                      .filter((line: string) => line.trim().length > 0)
+                      .slice(0, 2)
+                      .join(' ')
+                      .substring(0, 180);
+                    
+                    const judgmentPreview = (run.judgmentSummary || '')
+                      .split('\n')
+                      .filter((line: string) => line.trim().length > 0)
+                      .slice(0, 1)
+                      .join(' ')
+                      .substring(0, 130);
+
+                    return (
+                      <div 
+                        key={index} 
+                        className={`rounded-lg p-4 transition-all ${
+                          isWinner 
+                            ? 'bg-gradient-to-r from-gray-50 to-blue-50 border-2 border-blue-200' 
+                            : 'bg-white border border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
+                              isWinner ? 'bg-black text-white' : 'bg-gray-200 text-gray-600'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-gray-900">{variationName}</span>
+                                {isWinner && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                                    Winner
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500">Score: {score.toFixed(1)}/10</p>
+                            </div>
+                          </div>
+                          {isWinner && <Sparkles className="h-5 w-5 text-black flex-shrink-0" />}
+                        </div>
+                        
+                        {defensePreview && (
+                          <div className="mb-2 pl-11">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Defense Argument:</p>
+                            <p className="text-xs text-gray-600 leading-relaxed">
+                              "{defensePreview}{defensePreview.length >= 180 ? '...' : ''}"
+                            </p>
+                          </div>
+                        )}
+                        
+                        {judgmentPreview && (
+                          <div className="pl-11 pt-2 border-t border-gray-200">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Judge's Ruling:</p>
+                            <p className="text-xs text-gray-600 italic leading-relaxed">
+                              {judgmentPreview}{judgmentPreview.length >= 130 ? '...' : ''}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+                <div className="mt-4 p-3 bg-gray-900 text-white rounded-lg">
+                  <p className="text-xs leading-relaxed">
+                    <strong>Strategic Guidance:</strong> The {(() => {
+                      const allRuns = JSON.parse(localStorage.getItem('simulationResults') || '[]')
+                        .find((s: any) => s.strategyTitle === strategySummaries[0]?.title)?.runs || [];
+                      const bestRun = [...allRuns].sort((a: any, b: any) => (b.score || 0) - (a.score || 0))[0];
+                      return bestRun?.variation || 'top-scoring';
+                    })()} approach demonstrated superior effectiveness in simulation. Adopt this tactical stance for optimal results.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Strategy Outline Explanations */}
-          <Card className="legal-card legal-shadow">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center text-black">
-                <BookOpen className="h-5 w-5 mr-2 text-black" />
-                Detailed Strategy Explanation
-              </CardTitle>
-              <CardDescription>
-                Each argument supported by case law and evidence
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {exportData.supportingArguments && exportData.supportingArguments.length > 0 ? (
-                exportData.supportingArguments.map((arg, index) => {
-                  const primaryCitation = arg.citations?.[0] || 'Simulation Insight';
-                  const hasAdditionalCitations = (arg.citations?.length || 0) > 1;
-
-                  return (
-                    <div key={arg.point} className="border border-gray-200 rounded-lg p-4 bg-white">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Badge className="bg-black text-white border-black">Argument {index + 1}</Badge>
-                            <span className="text-xs uppercase text-gray-500">{primaryCitation}</span>
-                          </div>
-                          <h4 className="text-sm font-semibold text-gray-900">{arg.point}</h4>
-                          <p className="text-sm text-gray-700 leading-relaxed">{arg.analysis}</p>
-                        </div>
-                        <Quote className="h-5 w-5 text-gray-300" />
-                      </div>
-
-                      {hasAdditionalCitations && (
-                        <div className="mt-3 pt-3 border-t border-gray-100">
-                          <p className="text-xs uppercase text-gray-500 mb-2">Supporting Citations</p>
-                          <ul className="space-y-1 text-xs text-gray-600">
-                            {arg.citations?.slice(1).map((citation, citationIndex) => (
-                              <li key={citationIndex} className="flex items-start">
-                                <span className="mr-2 mt-0.5 h-1.5 w-1.5 rounded-full bg-gray-400" />
-                                {citation}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-sm text-gray-500">
-                  Supporting arguments will appear here once the memorandum is generated.
+          {alternativeStrategies.length > 0 && (
+            <Card className="legal-card legal-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg text-black flex items-center">
+                      <Target className="h-5 w-5 mr-2 text-gray-600" />
+                      Alternative Strategies Considered
+                    </CardTitle>
+                    <CardDescription>Other defense approaches tested but ranked lower</CardDescription>
+                  </div>
+                  <Badge variant="outline" className="text-xs">Backup Options</Badge>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {alternativeStrategies.map((strategy, idx) => (
+                  <div
+                    key={strategy.id}
+                    className="rounded-lg border border-gray-200 bg-gray-50 p-4 hover:bg-white transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium text-gray-500">Option {idx + 2}</span>
+                          <h4 className="text-sm font-semibold text-gray-900">{strategy.title}</h4>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-gray-600">
+                          <span>Avg Score: <strong className="text-gray-900">{strategy.averageScore.toFixed(1)}/10</strong></span>
+                          <span>Success Rate: <strong className="text-gray-900">{Math.round(strategy.successRate * 100)}%</strong></span>
+                          <span className="text-gray-500">({strategy.winsCount}/{strategy.totalRuns} wins)</span>
+                        </div>
+                      </div>
+                    </div>
+                    {strategy.keyInsight && (
+                      <p className="text-xs text-gray-600 mt-2 leading-relaxed">
+                        {strategy.keyInsight.substring(0, 150)}{strategy.keyInsight.length > 150 ? '...' : ''}
+                      </p>
+                    )}
+                  </div>
+                ))}
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                  <p className="text-xs text-blue-900">
+                    <strong>Note:</strong> These strategies scored lower overall but may be valuable as secondary arguments or if case circumstances change.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Navigation */}
