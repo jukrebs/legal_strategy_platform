@@ -571,8 +571,8 @@ State Attorney: {state_attorney_chars.get('name', 'James Anderson')}
 Firm: {state_attorney_chars.get('firm', 'Office of the State Attorney')}
 """
                 
-                # Build lawyer prompt (defense) based on strategy and case
-                lawyer_prompt = f"""
+                    # Build lawyer prompt (defense) based on strategy and case
+                    lawyer_prompt = f"""
 You are the defense attorney representing the defendant in this case.
 
 CASE DETAILS:
@@ -594,8 +594,8 @@ Your role is to present a compelling legal defense using this strategy. Argue fo
 Present your argument professionally and persuasively, citing relevant legal principles where appropriate.
 """
 
-                # Build opponent prompt (state attorney) based on characteristics
-                opponent_prompt = f"""
+                    # Build opponent prompt (state attorney) based on characteristics
+                    opponent_prompt = f"""
 You are the State Attorney representing the plaintiff in this lawsuit.
 
 CASE DETAILS:
@@ -617,8 +617,8 @@ Your role is to aggressively prosecute this case on behalf of the plaintiff. Pre
 and maximum damages. Challenge the defense's arguments forcefully and cite precedent to support the plaintiff's position.
 """
 
-                # Build judge prompt based on characteristics
-                judge_prompt = f"""
+                    # Build judge prompt based on characteristics
+                    judge_prompt = f"""
 You are {judge_chars.get('name', 'Hon. Sarah Mitchell')}, presiding judge for {judge_chars.get('court', 'EDNY/SDNY')}.
 
 CASE DETAILS:
@@ -653,70 +653,89 @@ Your decision should reflect your judicial tendencies, particularly your:
 """
 
                     # Call n8n webhook
-                try:
-                    session_id = f"session-{uuid.uuid4()}"
+                    try:
+                        session_id = f"session-{uuid.uuid4()}"
                         
-                    payload = {
-                        "lawyer_prompt": lawyer_prompt,
-                        "judge_prompt": judge_prompt,
-                        "opponent_prompt": opponent_prompt,
-                        "session_id": session_id
-                    }
-                        
-                    response = requests.post(n8n_url, json=payload, timeout=120)
-                        
-                    if response.status_code == 200:
-                        result = response.json()
-                        output = result.get('output', {})
-                            
-                        # Get the chat history components
-                        defense_argument = output.get('defense_argument', '')
-                        plaintiff_argument = output.get('plaintiff_argument', '')
-                        judgment_summary = output.get('judgment_summary', '')
-                        winner = output.get('winner', '')
-                            
-                        # Score the result using GPT-4o
-                        score = score_simulation_result(
-                            defense_argument=defense_argument,
-                            plaintiff_argument=plaintiff_argument,
-                            judgment_summary=judgment_summary,
-                            winner=winner,
-                            strategy_title=strategy_title,
-                            variation=variation
-                        )
-                            
-                        run_result = {
-                            'runId': run_id,
-                            'variation': variation,
-                            'winner': winner,
-                            'score': score,
-                            'defenseArgument': defense_argument,
-                            'plaintiffArgument': plaintiff_argument,
-                            'judgmentSummary': judgment_summary,
-                            'sessionId': session_id
+                        payload = {
+                            "lawyer_prompt": lawyer_prompt,
+                            "judge_prompt": judge_prompt,
+                            "opponent_prompt": opponent_prompt,
+                            "session_id": session_id
                         }
+                        
+                        response = requests.post(n8n_url, json=payload, timeout=120)
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            output = result.get('output', {})
                             
-                        strategy_runs.append(run_result)
+                            # Get the chat history components
+                            defense_argument = output.get('defense_argument', '')
+                            plaintiff_argument = output.get('plaintiff_argument', '')
+                            judgment_summary = output.get('judgment_summary', '')
+                            winner = output.get('winner', '')
                             
-                        # Stream this result immediately to the frontend
-                        stream_data = {
-                            'type': 'run_complete',
-                            'strategyId': strategy_id,
-                            'strategyTitle': strategy_title,
-                            'run': run_result
-                        }
-                        yield f"data: {json.dumps(stream_data)}\n\n"
+                            # Score the result using GPT-4o
+                            score = score_simulation_result(
+                                defense_argument=defense_argument,
+                                plaintiff_argument=plaintiff_argument,
+                                judgment_summary=judgment_summary,
+                                winner=winner,
+                                strategy_title=strategy_title,
+                                variation=variation
+                            )
                             
-                    else:
-                        print(f"n8n webhook error: {response.status_code} - {response.text}")
+                            run_result = {
+                                'runId': run_id,
+                                'variation': variation,
+                                'winner': winner,
+                                'score': score,
+                                'defenseArgument': defense_argument,
+                                'plaintiffArgument': plaintiff_argument,
+                                'judgmentSummary': judgment_summary,
+                                'sessionId': session_id
+                            }
+                            
+                            strategy_runs.append(run_result)
+                            
+                            # Stream this result immediately to the frontend
+                            stream_data = {
+                                'type': 'run_complete',
+                                'strategyId': strategy_id,
+                                'strategyTitle': strategy_title,
+                                'run': run_result
+                            }
+                            yield f"data: {json.dumps(stream_data)}\n\n"
+                            
+                        else:
+                            print(f"n8n webhook error: {response.status_code} - {response.text}")
+                            error_result = {
+                                'runId': run_id,
+                                'variation': variation,
+                                'error': f"API error: {response.status_code}",
+                                'score': 0
+                            }
+                            strategy_runs.append(error_result)
+                            
+                            # Stream error result
+                            stream_data = {
+                                'type': 'run_complete',
+                                'strategyId': strategy_id,
+                                'strategyTitle': strategy_title,
+                                'run': error_result
+                            }
+                            yield f"data: {json.dumps(stream_data)}\n\n"
+                    
+                    except Exception as e:
+                        print(f"Error calling n8n webhook: {str(e)}")
                         error_result = {
                             'runId': run_id,
                             'variation': variation,
-                            'error': f"API error: {response.status_code}",
+                            'error': str(e),
                             'score': 0
                         }
                         strategy_runs.append(error_result)
-                            
+                        
                         # Stream error result
                         stream_data = {
                             'type': 'run_complete',
@@ -726,27 +745,8 @@ Your decision should reflect your judicial tendencies, particularly your:
                         }
                         yield f"data: {json.dumps(stream_data)}\n\n"
                     
-                except Exception as e:
-                    print(f"Error calling n8n webhook: {str(e)}")
-                    error_result = {
-                        'runId': run_id,
-                        'variation': variation,
-                        'error': str(e),
-                        'score': 0
-                    }
-                    strategy_runs.append(error_result)
-                        
-                    # Stream error result
-                    stream_data = {
-                        'type': 'run_complete',
-                        'strategyId': strategy_id,
-                        'strategyTitle': strategy_title,
-                        'run': error_result
-                    }
-                    yield f"data: {json.dumps(stream_data)}\n\n"
-                    
-                # Small delay between calls to avoid overwhelming the API
-                time.sleep(2)
+                    # Small delay between calls to avoid overwhelming the API
+                    time.sleep(2)
                 
                 # Calculate average score for this strategy after all runs complete
                 valid_scores = [r['score'] for r in strategy_runs if 'score' in r and r['score'] > 0]
