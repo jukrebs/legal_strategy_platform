@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { demoCase } from '@/lib/mock-data';
 import { CaseIntake } from '@/lib/types';
 import { FileText, AlertCircle, Upload, X, Link as LinkIcon } from 'lucide-react';
+import { LegalLoading } from '@/components/ui/legal-loading';
 
 // Mock judge profiles
 const judges = [
@@ -42,11 +43,19 @@ const states = [
 export function CaseIntakeForm() {
   const router = useRouter();
   const [formData, setFormData] = useState<CaseIntake>(demoCase);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isDragActive, setIsDragActive] = useState(false);
   const [selectedState, setSelectedState] = useState<string>('');
   const [selectedLawyer, setSelectedLawyer] = useState<string>('');
+  const [showLoading, setShowLoading] = useState(false);
+  
+  const loadingMessages = [
+    "Reviewing legal databases…",
+    "Analyzing precedents…",
+    "Evaluating case specifics…",
+    "Identifying similar cases…",
+    "Building strategic foundations…"
+  ];
   
   // Filter lawyers by selected state
   const filteredLawyers = selectedState 
@@ -102,7 +111,9 @@ export function CaseIntakeForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    
+    // Show loading animation while processing
+    setShowLoading(true);
     
     try {
       // If PDFs are uploaded, send them to the backend for processing
@@ -133,24 +144,24 @@ export function CaseIntakeForm() {
           };
           localStorage.setItem('legalCase', JSON.stringify(caseData));
           
-          setIsSubmitting(false);
+          // Navigate after processing completes
           router.push('/cases');
         } else {
           console.error('Error from backend:', result.error);
           alert(`Error: ${result.error}`);
-          setIsSubmitting(false);
+          setShowLoading(false);
         }
       } else {
         // No PDFs uploaded, use mock data flow
         localStorage.setItem('legalCase', JSON.stringify(formData));
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setIsSubmitting(false);
+        
+        // Navigate after saving
         router.push('/cases');
       }
     } catch (error) {
       console.error('Error uploading case:', error);
       alert('An error occurred while processing your case. Please try again.');
-      setIsSubmitting(false);
+      setShowLoading(false);
     }
   };
 
@@ -163,6 +174,9 @@ export function CaseIntakeForm() {
       />
       
       <div className="max-w-4xl mx-auto p-6">
+        {showLoading ? (
+          <LegalLoading messages={loadingMessages} duration={12500} />
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Header Section */}
           <Card className="legal-card legal-shadow">
@@ -397,14 +411,14 @@ export function CaseIntakeForm() {
             </div>
             <Button 
               type="submit" 
-              size="lg" 
-              disabled={isSubmitting}
+              size="lg"
               className="legal-gradient text-white px-8 py-3 text-base font-medium"
             >
-              {isSubmitting ? 'Processing...' : 'Analyze Case & Find Similar Cases'}
+              Analyze Case & Find Similar Cases
             </Button>
           </div>
         </form>
+        )}
       </div>
     </>
   );

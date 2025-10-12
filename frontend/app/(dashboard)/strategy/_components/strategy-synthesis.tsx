@@ -15,6 +15,7 @@ import {
   Quote,
   Loader2
 } from 'lucide-react';
+import { LegalLoading } from '@/components/ui/legal-loading';
 
 interface StrategyData {
   id: string;
@@ -35,6 +36,14 @@ export function StrategySynthesis() {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  const loadingMessages = [
+    "Synthesizing legal approaches…",
+    "Evaluating defense strategies…",
+    "Mapping potential outcomes…",
+    "Creating defense strategies…",
+    "Crafting persuasive arguments…"
+  ];
 
   useEffect(() => {
     fetchStrategies();
@@ -44,6 +53,9 @@ export function StrategySynthesis() {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Start timer for minimum 2-second delay
+      const startTime = Date.now();
       
       // Get selected cases from localStorage
       const selectedCasesJson = localStorage.getItem('selectedCases');
@@ -65,6 +77,13 @@ export function StrategySynthesis() {
       });
 
       const data = await response.json();
+      
+      // Calculate remaining time to reach minimum 2 seconds
+      const elapsedTime = Date.now() - startTime;
+      const remainingTime = Math.max(0, 2000 - elapsedTime);
+      
+      // Wait for remaining time before showing results
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
       
       if (data.success) {
         setStrategies(data.strategies.map((s: any) => ({
@@ -103,11 +122,7 @@ export function StrategySynthesis() {
           description="AI is analyzing cases and developing defense strategies"
         />
         <div className="max-w-6xl mx-auto p-6">
-          <div className="text-center py-12">
-            <Loader2 className="h-12 w-12 animate-spin text-black mx-auto mb-4" />
-            <p className="text-gray-600">Analyzing precedents and formulating defense strategies...</p>
-            <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
-          </div>
+          <LegalLoading messages={loadingMessages} duration={12500} />
         </div>
       </>
     );

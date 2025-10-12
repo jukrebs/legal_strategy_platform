@@ -20,6 +20,7 @@ import {
   User,
   Target
 } from 'lucide-react';
+import { LegalLoading } from '@/components/ui/legal-loading';
 
 interface CaseData {
   id: string;
@@ -125,6 +126,8 @@ export function SimilarCasesResults() {
     // Store selected cases in localStorage
     const selectedCases = cases.filter(c => c.included);
     localStorage.setItem('selectedCases', JSON.stringify(selectedCases));
+    
+    // Navigate immediately - strategy page will handle loading
     router.push('/strategy');
   };
 
@@ -137,10 +140,7 @@ export function SimilarCasesResults() {
           description="Analyzing precedents and identifying strategic opportunities"
         />
         <div className="max-w-7xl mx-auto p-6">
-          <div className="text-center py-12">
-            <div className="animate-spin h-12 w-12 border-4 border-black border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-gray-600">Searching legal databases and analyzing precedents...</p>
-          </div>
+          <LegalLoading messages={["Searching legal databases and analyzing precedents..."]} duration={12500} />
         </div>
       </>
     );
