@@ -1,193 +1,346 @@
 # Legal Strategy Platform
 
-An AI-powered legal strategy platform that helps legal professionals analyze cases, discover similar precedents, develop litigation strategies, and simulate courtroom scenarios.
+AI-powered legal strategy platform for case analysis, precedent research, and courtroom simulation.
 
-## 📁 Project Structure
+## Overview
+
+The platform assists defense attorneys in developing data-driven defense strategies through vector-based case search, AI strategy generation, and multi-agent courtroom simulations.
+
+### Core Features
+
+- PDF case document upload and text extraction
+- Semantic similarity search using Weaviate vector database
+- GPT-4 powered defense strategy generation
+- Multi-agent courtroom simulations via n8n workflows
+- Automated strategy evaluation and scoring
+- Professional legal memorandum generation
+
+## Architecture
+
+**Backend**: Flask REST API with OpenAI integration, Weaviate client, and n8n webhook orchestration
+
+**Frontend**: Next.js 14 with TypeScript, React, Tailwind CSS, and Radix UI components
+
+**Database**: Weaviate vector database with OpenAI text-embedding-3-large
+
+**Simulation Engine**: n8n workflows managing multi-agent trial simulations
+
+## Prerequisites
+
+### Backend
+- Python 3.13+
+- OpenAI API key
+- Weaviate instance (cloud or local)
+- n8n workflow deployment
+
+### Frontend
+- Node.js 18+
+- npm
+
+## Installation
+
+### Backend Setup
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment variables
+cat > .env << EOF
+OPENAI_API_KEY=your_key_here
+WEAVIATE_URL=your_weaviate_url
+WEAVIATE_API_KEY=your_weaviate_key
+EOF
+
+# Update config.yaml with Weaviate settings
+```
+
+### Frontend Setup
+
+```bash
+cd frontend
+npm install
+
+# Optional: Configure environment
+echo "NEXT_PUBLIC_API_URL=http://localhost:5000" > .env.local
+```
+
+## Running the Application
+
+### Start Backend
+```bash
+source venv/bin/activate
+python app.py
+# Runs on http://localhost:5000
+```
+
+### Start Frontend
+```bash
+cd frontend
+npm run dev
+# Runs on http://localhost:3000
+```
+
+## Data Setup
+
+### Option 1: Use Pre-generated Data
+
+The `data/` directory contains ready-to-use JSON files:
+- `reckless_driving_cases.json` - Case database
+- `judge_characteristics.json` - Judicial profiles
+- `stateattorney_characteristics.json` - Prosecutor profiles
+
+### Option 2: Generate from CourtListener API
+
+```bash
+conda activate hackathon
+export COURTLISTENER_API_TOKEN=your_token
+
+# Generate case data
+python data/collection/CasesAPI.py
+python data/collection/JudgeAPI.py
+python data/collection/Syllabus.py
+```
+
+### Option 3: Load into Weaviate
+
+```bash
+# Configure config.yaml with collection settings
+python backend/weaviate_cases.py --config config.yaml
+```
+
+## API Endpoints
+
+### Case Management
+
+**GET** `/api/similar-cases`
+Returns top 5 similar cases from database
+
+**POST** `/api/upload-case`
+Upload PDFs, extract text, search for similar cases
+- Body: `multipart/form-data` with `files[]`
+- Returns: Array of similar cases with metadata
+
+### Strategy Generation
+
+**POST** `/api/generate-strategies`
+Generate 3 defense strategies from selected cases
+- Body: `{ "cases": [...] }`
+- Returns: Array of strategy objects with advantages, considerations, risks
+
+### Simulation
+
+**POST** `/api/run-simulations`
+Run parallel courtroom simulations for strategies
+- Body: `{ "strategies": [...], "caseFacts": "...", "extractedText": "..." }`
+- Returns: Server-Sent Events stream with results
+- Executes 3 strategies in parallel using 3 n8n webhooks
+
+### Report Generation
+
+**POST** `/api/generate-memorandum`
+Generate legal memorandum from simulation results
+- Body: `{ "simulationResults": [...], "caseFacts": "..." }`
+- Returns: Formatted legal memorandum text
+
+### Health Check
+
+**GET** `/health`
+Server health status
+
+## Simulation System
+
+### n8n Payload Format
+
+```json
+{
+  "session_id": "session-uuid",
+  "judge_name": "Hon. Sarah Mitchell",
+  "plaintiff_attorney_name": "James Anderson",
+  "defense_attorney_name": "Defense Attorney",
+  "case_facts": "...",
+  "defense_strategy": [{
+    "id": "strategy-1",
+    "title": "Strategy Title",
+    "concept": "Strategy concept",
+    "advantages": ["..."]
+  }],
+  "stages": [
+    "openings_plaintiff",
+    "openings_defense",
+    "state_case_in_chief",
+    "defense_case_in_chief",
+    "rebuttal_state",
+    "surrebuttal_defense",
+    "closings_plaintiff",
+    "closings_defense",
+    "verdict_judge"
+  ]
+}
+```
+
+### n8n Response Format
+
+Expected array of stage objects:
+
+```json
+[
+  {
+    "session_id": "...",
+    "stage": "openings_plaintiff",
+    "speaker": "Plaintiff",
+    "summary_of_record": "...",
+    "argument": "...",
+    "theory_of_case": "...",
+    "verdict": null
+  },
+  {
+    "session_id": "...",
+    "stage": "verdict_judge",
+    "speaker": "Judge",
+    "summary_of_record": "...",
+    "verdict": {
+      "liable": false,
+      "damages": "",
+      "reasoning": "..."
+    }
+  }
+]
+```
+
+The backend parses this from either the `output` field or `intermediateSteps.observation` fields.
+
+### Parallel Execution
+
+Three n8n webhook URLs enable parallel strategy testing:
+1. `https://jukrebs.app.n8n.cloud/webhook/bfda8a16-0260-4297-ab36-a707e54323c2`
+2. `https://jukrebs.app.n8n.cloud/webhook/21d18f0e-c74d-45cd-a753-a9b6e8e01744`
+3. `https://jukrebs.app.n8n.cloud/webhook/f6a3c302-85e5-4ce5-a49f-4e210ed18ded`
+
+Each strategy runs simultaneously on a different webhook, reducing total execution time from 15-20 minutes to 3-5 minutes.
+
+### Scoring System
+
+GPT-4o evaluates each simulation on a 0-10 scale:
+- 0-2: Very Poor
+- 3-4: Poor
+- 5-6: Moderate
+- 7-8: Good (counts as win)
+- 9-10: Excellent (counts as win)
+
+Evaluation includes: legal reasoning quality, precedent application, persuasiveness, response to opposition, strategic coherence, judge receptivity, outcome alignment.
+
+## Configuration
+
+### Judge Profile (`data/judge_characteristics.json`)
+- Pleading strictness (0-10)
+- Precedent weight (0-10)
+- Policy receptivity (0-10)
+- Plaintiff/defendant bias (0-10)
+- Temperament and patience
+- Areas of strict enforcement
+
+### State Attorney Profile (`data/stateattorney_characteristics.json`)
+- Aggressiveness level (0-10)
+- Win rate percentage
+- Communication style
+- Settlement willingness
+- Key strengths and weaknesses
+- Tactical approaches
+
+### Weaviate Configuration (`config.yaml`)
+- Collection name and vectorizer
+- Embedding model
+- Search parameters
+- Ingestion settings
+
+## Project Structure
 
 ```
 legal_strategy_platform/
-├── backend/          # Backend API (if applicable)
-└── frontend/         # Next.js frontend application
+├── app.py                    # Flask backend
+├── config.yaml               # Weaviate configuration
+├── requirements.txt          # Python dependencies
+├── test_simulation.py        # Simulation testing
+├── backend/
+│   └── weaviate_cases.py    # Vector search client
+├── data/
+│   ├── collection/          # Data generation scripts
+│   ├── judge_characteristics.json
+│   ├── stateattorney_characteristics.json
+│   └── reckless_driving_cases.json
+└── frontend/
+    ├── app/
+    │   ├── (dashboard)/     # Application routes
+    │   ├── api/            # API routes
+    │   └── page.tsx        # Landing page
+    ├── components/
+    │   ├── layout/         # Layout components
+    │   └── ui/             # UI component library
+    └── lib/
+        ├── types.ts        # TypeScript types
+        └── utils.ts        # Utilities
 ```
 
-## 🚀 Quick Start
+## Testing
 
-### Prerequisites
-
-- Node.js 18+ installed
-- npm package manager
-- PostgreSQL database (optional, for full features)
-
-### Data Sources
-
-The platform supports three ways to get case data:
-
-#### Option 1: Use Pre-generated Data (Recommended for Quick Start)
-The `data/` directory contains ready-to-use JSON files:
-- `Disorderly_conduct_cases.json` - Disorderly conduct cases
-- `reckless_driving_cases.json` - Reckless driving cases  
-- `judge_characteristics.json` - Judge behavioral profiles
-- `stateattorney_characteristics.json` - State attorney profiles
-- `syllabi_by_judge.json` - Case syllabi organized by judge
-
-#### Option 2: Generate Data from CourtListener API
-1. **Activate the hackathon Conda environment**
-   ```bash
-   conda activate hackathon
-   ```
-
-2. **Export your CourtListener API token**
-   ```bash
-   export COURTLISTENER_API_TOKEN=your_token_here
-   ```
-
-3. **Run the data collection scripts**
-   ```bash
-   # Generate disorderly conduct cases
-   python data/collection/CasesAPI.py
-   
-   # Generate judge profiles and dockets
-   python data/collection/JudgeAPI.py
-   
-   # Process syllabi by judge
-   python data/collection/Syllabus.py
-   ```
-
-#### Option 3: Custom Dataset Generation
-Modify the scripts in `data/collection/` to fetch different case types, judges, or date ranges by updating the search parameters in each script.
-
-### Weaviate Case Embeddings
-
-Use the `backend/weaviate_cases.py` utility to create a Weaviate collection, ingest a court-case JSON dataset, and run similarity searches.
-
-1. **Configure credentials and settings**
-   - Edit `.env` with your Weaviate (and optional OpenAI) keys, then load it: `source .env`.
-   - Update `config.yaml` with your desired operations (`operations:` list), dataset location, schema fields, and query parameters.
-   - The default config targets `data/filtered_reckless_driving_cases.json`, embeds each case’s `syllabus`, and promotes `absolute_url` and `judge` as top-level properties on every stored object.
-
-2. **Run the workflow**
-   ```bash
-   python backend/weaviate_cases.py --config config.yaml
-   ```
-   The script executes the operations listed in `config.yaml` (default: `create-collection`, `ingest`). Switch the list or set `operation: search` to run only a search.
-
-3. **Override the operation on demand**
-   ```bash
-   python backend/weaviate_cases.py --config config.yaml --operation search
-   ```
-   This ignores the config’s `operations` list and performs just the specified step. The `search` section of `config.yaml` supports using the text of an existing case via `case_json`.
-
-### Running the Frontend
-
-1. **Navigate to the frontend directory**
-   ```bash
-   cd frontend
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment variables** (optional)
-   
-   Create a `.env` file in the `frontend/` directory if you need database features:
-   ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/legal_strategy"
-   NEXT_PUBLIC_APP_URL="http://localhost:3000"
-   ```
-
-4. **Run the development server**
-   ```bash
-   npm run dev
-   ```
-   
-   The application will be available at **http://localhost:3000**
-
-5. **Build for production** (optional)
-   ```bash
-   npm run build
-   npm run start
-   ```
-
-### Key Features
-
-- **Case Intake**: Structured case information collection with PDF upload
-- **Similar Cases Discovery**: AI-powered case law search using Weaviate
-- **Strategy Synthesis**: Data-driven litigation strategies generated by GPT-4
-- **Digital Twins**: Judge and opposing counsel profiling with behavioral analysis
-- **Courtroom Simulation**: AI-powered simulations with n8n webhook integration
-- **Export Reports**: Comprehensive case documentation and strategy analysis
-
-## 🎯 Simulation System
-
-The platform includes a sophisticated AI-powered courtroom simulation system that tests defense strategies:
-
-### Quick Start
-
-1. **Start the backend server**:
-   ```bash
-   source venv/bin/activate
-   python app.py
-   ```
-
-2. **Start the frontend**:
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-3. **Run a test simulation**:
-   ```bash
-   python test_simulation.py
-   ```
-
-### How It Works
-
-1. **Character Profiles**: Judge and State Attorney characteristics loaded from JSON files
-2. **Strategy Testing**: Each strategy runs 3 simulation variants (Standard, Aggressive, Conservative)
-3. **AI Agents**: Three AI agents (Defense Lawyer, State Attorney, Judge) argue the case
-4. **Scoring**: Defense wins = high score, Plaintiff wins = low score
-5. **Results**: Detailed transcript, win counts, and strategy effectiveness scores
-
-For complete documentation, see [SIMULATION_SYSTEM.md](./SIMULATION_SYSTEM.md).
-
-## 📖 Documentation
-
-- [Simulation System Documentation](./SIMULATION_SYSTEM.md) - Complete guide to AI simulations
-- [Frontend README](./frontend/README.md) - Frontend features and architecture
-- [PDF Upload Setup](./PDF_UPLOAD_SETUP.md) - PDF processing configuration
-
-## 🛠️ Technology Stack
-
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, shadcn/ui
-- **Database**: PostgreSQL with Prisma ORM
-- **UI Components**: Radix UI primitives
-
-## 🐛 Troubleshooting
-
-### Port Already in Use
-
-If port 3000 is already in use:
 ```bash
-# Use a different port
-npm run dev -- -p 3001
+# Test simulation endpoint
+python test_simulation.py
+
+# Expected: 3 parallel simulations, streaming results, GPT-4o scoring
 ```
 
-Or kill the process using port 3000:
-```bash
-lsof -ti:3000 | xargs kill -9
-```
+## Technology Stack
 
-### Database Connection Issues
+**Backend**: Flask, OpenAI GPT-4o, Weaviate, PyPDF, python-dotenv
 
-Ensure PostgreSQL is running and the `DATABASE_URL` in your `.env` file is correct.
+**Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS, Radix UI, React Hook Form, Zod
 
-## 📝 License
+**AI/ML**: GPT-4o (strategy generation & evaluation), text-embedding-3-large (vectorization), n8n (agent orchestration)
 
-This project is proprietary software developed for legal strategy analysis.
+## Troubleshooting
 
----
+**Backend won't start**
+- Verify Python 3.13+: `python --version`
+- Check virtual environment activation
+- Verify dependencies: `pip install -r requirements.txt`
 
-**Backend in /backend**  
-**Frontend in /frontend**
+**OpenAI errors**
+- Verify `OPENAI_API_KEY` in `.env`
+- Check API credits and rate limits
+
+**Weaviate connection errors**
+- Verify `WEAVIATE_URL` and `WEAVIATE_API_KEY`
+- Confirm collection exists (check `config.yaml`)
+
+**n8n webhook errors**
+- Verify workflows are deployed and active
+- Check webhook URLs in `app.py` line 574-578
+- Review n8n execution logs
+- Increase `max_iterations` if agent stops early
+
+**Frontend errors**
+- Verify Node.js 18+: `node --version`
+- Clear cache: `rm -rf node_modules .next && npm install`
+- Check backend is running on port 5000
+
+**No similar cases returned**
+- Verify cases ingested into Weaviate
+- Check collection name in config
+- Review query generation in logs
+
+## Performance
+
+- Simulations run in parallel (3 simultaneous executions)
+- Each simulation: 30-90 seconds depending on n8n workflow
+- Total execution time: 3-5 minutes for 3 strategies
+- Timeout: 300 seconds per simulation, 600 seconds queue timeout
+
+## License
+
+Proprietary software developed for legal strategy analysis.
