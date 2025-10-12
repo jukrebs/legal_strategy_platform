@@ -1,4 +1,4 @@
-# Legal Strategy Platform
+# Kanon
 
 AI-powered legal strategy platform for case analysis, precedent research, and courtroom simulation.
 

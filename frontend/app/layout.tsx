@@ -8,7 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Legal Strategy Platform",
+  title: "Kanon",
   description: "AI-powered legal strategy and case research platform for US lawyers",
   icons: {
     icon: "/favicon.svg",
