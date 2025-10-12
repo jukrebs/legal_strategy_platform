@@ -28,48 +28,71 @@ export function ExportReport() {
   const [exportData, setExportData] = useState<ExportData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [memorandum, setMemorandum] = useState<string>('');
+  const [isLoadingMemo, setIsLoadingMemo] = useState(true);
+  const [bestStrategy, setBestStrategy] = useState<any>(null);
 
   useEffect(() => {
-    // Generate export data based on simulation results
-    const caseData = JSON.parse(localStorage.getItem('legalCase') || '{}');
-    const recommendedStrategy = mockStrategies[0];
-    
-    const data: ExportData = {
-      caseSummary: `Motion to Dismiss for Consumer False Advertising Case in ${caseData.jurisdiction || 'EDNY/SDNY'}. 
-      
-      Case Facts: ${caseData.facts || 'Product labeling case involving front-label claims and back-panel disclosures.'}
-      
-      Posture: ${caseData.posture || 'Motion to Dismiss (MTD)'}
-      
-      Opposing Party: ${caseData.opposingCounsel || 'State Attorney General'}`,
-      
-      recommendedStrategy: recommendedStrategy,
-      
-      supportingArguments: [
-        {
-          point: 'Reasonable Consumer Standard Application',
-          citations: ['Mantikas v. Kellogg Co., 832 F. Supp. 2d 304 (S.D.N.Y. 2011)'],
-          analysis: 'Under the reasonable consumer standard established in Mantikas, courts must consider the full context of product labeling, including back-panel disclosures that provide complete ingredient information.'
-        },
-        {
-          point: 'Context Cures Misleading Labeling',
-          citations: ['Jessani v. Monini North America, 110 F. Supp. 3d 522 (S.D.N.Y. 2015)'],
-          analysis: 'The back-panel ingredient listing and nutritional information cure any potential ambiguity from front-label claims, as the reasonable consumer would consider all available product information.'
-        },
-        {
-          point: 'Lack of Economic Injury',
-          citations: ['Fink v. Time Warner Cable, 714 F.3d 738 (2d Cir. 2013)'],
-          analysis: 'Plaintiff must demonstrate they paid a price premium attributable to the alleged misrepresentation. Without evidence of premium pricing, economic injury cannot be established.'
-        }
-      ],
-      
-      riskAnalysis: 'Moderate risk strategy with strong precedential support. Primary risk factors include potential consumer survey evidence and judge\'s receptivity to context defenses. Simulation results suggest 70-80% success probability based on digital twin analysis.',
-      
-      keyPrecedents: mockSimilarCases.slice(0, 3)
-    };
-    
-    setExportData(data);
+    generateMemorandum();
   }, []);
+
+  const generateMemorandum = async () => {
+    try {
+      setIsLoadingMemo(true);
+      
+      // Load data from localStorage
+      const caseData = JSON.parse(localStorage.getItem('legalCase') || '{}');
+      const simulationResults = JSON.parse(localStorage.getItem('simulationResults') || '[]');
+      
+      if (simulationResults.length === 0) {
+        // No simulation results, redirect back
+        router.push('/simulation');
+        return;
+      }
+      
+      // Call backend to generate memorandum
+      const response = await fetch('http://localhost:5000/api/generate-memorandum', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          simulationResults: simulationResults,
+          caseFacts: caseData.facts || ''
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setMemorandum(result.memorandum);
+        setBestStrategy(result.bestStrategy);
+        
+        // Parse memorandum into structured data for backward compatibility
+        const data: ExportData = {
+          caseSummary: caseData.facts || 'Case facts not available',
+          recommendedStrategy: {
+            name: result.bestStrategy.title,
+            summary: `This strategy achieved an average score of ${result.bestStrategy.averageScore.toFixed(1)}/10 across ${result.bestStrategy.totalRuns} simulations, winning ${result.bestStrategy.winsCount} times.`
+          },
+          supportingArguments: [],
+          riskAnalysis: `Based on ${result.bestStrategy.totalRuns} AI simulations, this strategy has a ${((result.bestStrategy.winsCount / result.bestStrategy.totalRuns) * 100).toFixed(0)}% success rate.`,
+          keyPrecedents: []
+        };
+        
+        setExportData(data);
+      } else {
+        alert(`Failed to generate memorandum: ${result.error}`);
+        router.push('/simulation');
+      }
+    } catch (error) {
+      console.error('Error generating memorandum:', error);
+      alert('Failed to generate memorandum. Please try again.');
+      router.push('/simulation');
+    } finally {
+      setIsLoadingMemo(false);
+    }
+  };
 
   const generatePDF = async () => {
     setIsGenerating(true);
@@ -83,7 +106,7 @@ export function ExportReport() {
       const lineHeight = 7;
       let yPosition = 30;
 
-      const addText = (text: string, x: number, y: number, maxWidth: number, fontSize = 12) => {
+      const addText = (text: string, x: number, y: number, maxWidth: number, fontSize = 11) => {
         doc.setFontSize(fontSize);
         const lines = doc.splitTextToSize(text, maxWidth);
         doc.text(lines, x, y);
@@ -96,76 +119,51 @@ export function ExportReport() {
       doc.text('LEGAL STRATEGY MEMORANDUM', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 15;
 
-      // Case Summary
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('I. CASE SUMMARY', margin, yPosition);
-      yPosition += 10;
-
+      // Add AI-generated memorandum content
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
-      yPosition += addText(exportData?.caseSummary || '', margin, yPosition, pageWidth - 2 * margin);
-      yPosition += 10;
-
-      // Strategy Outline
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('II. RECOMMENDED STRATEGY', margin, yPosition);
-      yPosition += 10;
-
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text(exportData?.recommendedStrategy?.name || '', margin, yPosition);
-      yPosition += 8;
-
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      yPosition += addText(exportData?.recommendedStrategy?.summary || '', margin, yPosition, pageWidth - 2 * margin);
-      yPosition += 10;
-
-      // Supporting Arguments
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('III. SUPPORTING ARGUMENTS', margin, yPosition);
-      yPosition += 10;
-
-      exportData?.supportingArguments?.forEach((arg, index) => {
-        if (yPosition > 250) {
+      
+      const memorandumLines = memorandum.split('\n');
+      
+      for (const line of memorandumLines) {
+        if (yPosition > 270) {
           doc.addPage();
           yPosition = 30;
         }
-
+        
+        // Check if line is a heading (starts with number or all caps)
+        if (line.match(/^(I{1,3}V?|VI{0,3}|\d+\.)\s/) || line === line.toUpperCase() && line.length < 50 && line.length > 0) {
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          yPosition += addText(line, margin, yPosition, pageWidth - 2 * margin, 12);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(11);
+        } else if (line.trim().length > 0) {
+          yPosition += addText(line, margin, yPosition, pageWidth - 2 * margin);
+        } else {
+          yPosition += lineHeight;
+        }
+      }
+      
+      // Add simulation summary
+      if (bestStrategy) {
+        if (yPosition > 240) {
+          doc.addPage();
+          yPosition = 30;
+        }
+        
+        yPosition += 10;
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${index + 1}. ${arg.point}`, margin, yPosition);
-        yPosition += 8;
-
+        doc.text('SIMULATION RESULTS SUMMARY', margin, yPosition);
+        yPosition += 10;
+        
         doc.setFontSize(10);
-        doc.setFont('helvetica', 'italic');
-        yPosition += addText(`Citations: ${arg.citations.join('; ')}`, margin + 5, yPosition, pageWidth - 2 * margin - 5);
-        yPosition += 5;
-
-        doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        yPosition += addText(arg.analysis, margin + 5, yPosition, pageWidth - 2 * margin - 5);
-        yPosition += 8;
-      });
-
-      // Risk Analysis
-      if (yPosition > 220) {
-        doc.addPage();
-        yPosition = 30;
+        yPosition += addText(`Best Strategy: ${bestStrategy.title}`, margin, yPosition, pageWidth - 2 * margin, 10);
+        yPosition += addText(`Average Score: ${bestStrategy.averageScore.toFixed(1)}/10`, margin, yPosition, pageWidth - 2 * margin, 10);
+        yPosition += addText(`Defense Wins: ${bestStrategy.winsCount}/${bestStrategy.totalRuns} (${((bestStrategy.winsCount / bestStrategy.totalRuns) * 100).toFixed(0)}%)`, margin, yPosition, pageWidth - 2 * margin, 10);
       }
-
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('IV. RISK ANALYSIS', margin, yPosition);
-      yPosition += 10;
-
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      yPosition += addText(exportData?.riskAnalysis || '', margin, yPosition, pageWidth - 2 * margin);
-      yPosition += 10;
 
       // Footer
       const totalPages = doc.internal.pages.length - 1;
@@ -189,30 +187,18 @@ export function ExportReport() {
   };
 
   const copyToClipboard = async () => {
-    if (!exportData) return;
+    if (!memorandum) return;
 
-    const textContent = `
-LEGAL STRATEGY MEMORANDUM
-
-I. CASE SUMMARY
-${exportData.caseSummary}
-
-II. RECOMMENDED STRATEGY
-${exportData.recommendedStrategy?.name}
-${exportData.recommendedStrategy?.summary}
-
-III. SUPPORTING ARGUMENTS
-${exportData.supportingArguments?.map((arg, index) => 
-  `${index + 1}. ${arg.point}
-  Citations: ${arg.citations.join('; ')}
-  Analysis: ${arg.analysis}`
-).join('\n\n')}
-
-IV. RISK ANALYSIS
-${exportData.riskAnalysis}
-
-Generated by Legal Strategy Platform
-    `.trim();
+    let textContent = `LEGAL STRATEGY MEMORANDUM\n\n${memorandum}`;
+    
+    if (bestStrategy) {
+      textContent += `\n\n\nSIMULATION RESULTS SUMMARY\n`;
+      textContent += `Best Strategy: ${bestStrategy.title}\n`;
+      textContent += `Average Score: ${bestStrategy.averageScore.toFixed(1)}/10\n`;
+      textContent += `Defense Wins: ${bestStrategy.winsCount}/${bestStrategy.totalRuns} (${((bestStrategy.winsCount / bestStrategy.totalRuns) * 100).toFixed(0)}%)\n`;
+    }
+    
+    textContent += '\n\nGenerated by Legal Strategy Platform';
 
     await navigator.clipboard.writeText(textContent);
     setCopied(true);
@@ -236,14 +222,22 @@ Generated by Legal Strategy Platform
     }
   };
 
-  if (!exportData) {
+  if (isLoadingMemo || !exportData) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="text-center py-12">
-          <div className="animate-spin h-12 w-12 border-4 border-black border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Preparing your strategy report...</p>
+      <>
+        <ProgressHeader 
+          currentStep={6} 
+          title="Export Strategy Report" 
+          description="Generating AI-powered legal strategy memorandum"
+        />
+        <div className="max-w-4xl mx-auto p-6">
+          <div className="text-center py-12">
+            <div className="animate-spin h-12 w-12 border-4 border-black border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-gray-600">Analyzing simulation results and generating strategy memorandum...</p>
+            <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -283,27 +277,36 @@ Generated by Legal Strategy Platform
               <CardContent className="space-y-6">
                 <div className="pdf-preview legal-document p-6 bg-white border rounded-lg max-h-96 overflow-y-auto">
                   <h1 className="text-center mb-8">Legal Strategy Memorandum</h1>
-
-                  <h2>I. Case Summary</h2>
-                  <p className="mb-6">{exportData.caseSummary}</p>
-
-                  <h2>II. Recommended Strategy</h2>
-                  <h3 className="font-semibold mb-2">{exportData.recommendedStrategy?.name}</h3>
-                  <p className="mb-6">{exportData.recommendedStrategy?.summary}</p>
-
-                  <h2>III. Supporting Arguments</h2>
-                  <div className="space-y-4 mb-6">
-                    {exportData.supportingArguments?.map((arg, index) => (
-                      <div key={index}>
-                        <h3 className="font-semibold">{index + 1}. {arg.point}</h3>
-                        <p className="citation text-sm mb-2">Citations: {arg.citations.join('; ')}</p>
-                        <p>{arg.analysis}</p>
-                      </div>
-                    ))}
+                  
+                  {/* Display AI-generated memorandum */}
+                  <div className="memorandum-content whitespace-pre-wrap">
+                    {memorandum}
                   </div>
-
-                  <h2>IV. Risk Analysis</h2>
-                  <p className="mb-6">{exportData.riskAnalysis}</p>
+                  
+                  {/* Best Strategy Info */}
+                  {bestStrategy && (
+                    <div className="mt-8 p-4 bg-gray-50 border rounded-lg">
+                      <h3 className="font-semibold text-gray-900 mb-2">Simulation Results Summary</h3>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Best Strategy:</span>
+                          <p className="font-medium">{bestStrategy.title}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Average Score:</span>
+                          <p className="font-medium">{bestStrategy.averageScore.toFixed(1)}/10</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Defense Wins:</span>
+                          <p className="font-medium">{bestStrategy.winsCount}/{bestStrategy.totalRuns}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Success Rate:</span>
+                          <p className="font-medium">{((bestStrategy.winsCount / bestStrategy.totalRuns) * 100).toFixed(0)}%</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

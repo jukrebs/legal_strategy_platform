@@ -156,7 +156,12 @@ export function StrategySynthesis() {
             <p className="text-gray-600">Select strategies to include in your analysis. Click to expand details.</p>
           </div>
           <Button 
-            onClick={() => router.push('/twins')}
+            onClick={() => {
+              // Save selected strategies to localStorage
+              const selectedStrategies = strategies.filter(s => s.included);
+              localStorage.setItem('selectedStrategies', JSON.stringify(selectedStrategies));
+              router.push('/twins');
+            }}
             className="legal-gradient text-white"
           >
             Configure Digital Twins
@@ -320,7 +325,12 @@ export function StrategySynthesis() {
             {strategies.filter(s => s.included).length} of {strategies.length} strategies selected
           </div>
           <Button 
-            onClick={() => router.push('/twins')}
+            onClick={() => {
+              // Save selected strategies to localStorage
+              const selectedStrategies = strategies.filter(s => s.included);
+              localStorage.setItem('selectedStrategies', JSON.stringify(selectedStrategies));
+              router.push('/twins');
+            }}
             className="legal-gradient text-white"
           >
             Configure Digital Twins

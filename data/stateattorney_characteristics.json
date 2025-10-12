@@ -1,0 +1,143 @@
+{
+  "name": "James Anderson",
+  "firm": "Office of the State Attorney",
+  "state": "New York",
+  "experienceYears": 12,
+  "aggressiveness": 8.5,
+  "settlementsVsTrials": 3.2,
+  "precedentReliance": 7.5,
+  "emotionalAppealUsage": 6.0,
+  "plaintiffSuccessRate": 72.5,
+  "evidenceSnippets": {
+    "aggressiveness": [
+      "In opening statements, consistently frames defendants in the harshest possible light, emphasizing danger to society and need for maximum accountability.",
+      "Frequently files for maximum penalties and rarely offers plea deals below 80% of maximum sentence.",
+      "Known for aggressive cross-examination tactics, often pressing witnesses on minor inconsistencies to undermine credibility."
+    ],
+    "settlementsVsTrials": [
+      "Out of 150 cases in the past 3 years, 115 went to trial rather than settlement (76.7% trial rate).",
+      "Rarely accepts settlement offers unless they meet or exceed 85% of the damages sought.",
+      "Has a reputation for 'going all the way' - colleagues describe as someone who 'doesn't back down'"
+    ],
+    "precedentReliance": [
+      "Extensively cites precedent in opening and closing arguments, often referencing 5-8 key cases per trial.",
+      "Maintains detailed case files organized by legal principle and frequently draws parallels to established case law.",
+      "In recent trial, cited State v. Morrison (2019) and People v. Chen (2020) to establish pattern of intentional harm."
+    ],
+    "emotionalAppealUsage": [
+      "Moderate use of emotional appeals - balances legal argumentation with humanizing the plaintiff's suffering.",
+      "Often presents victim impact statements and medical testimony to illustrate concrete harm.",
+      "In closing arguments, typically spends 30-40% of time on emotional narrative, 60-70% on legal analysis."
+    ],
+    "plaintiffSuccessRate": [
+      "Won 72.5% of cases that went to verdict in past 5 years (108 wins out of 149 trials).",
+      "Average jury award is 78% of damages sought, indicating strong persuasive capability.",
+      "Success rate increases to 85% in cases involving clear physical evidence and witness testimony."
+    ]
+  },
+  "notes": "James Anderson is a seasoned state attorney with over a decade of experience prosecuting civil and criminal cases. He is known for his aggressive litigation style and preference for trial over settlement. Anderson meticulously prepares cases, relying heavily on precedent and statutory interpretation while also incorporating emotional appeals to humanize plaintiffs. His high success rate and reputation for persistence make him a formidable opponent in the courtroom. Defense attorneys facing Anderson should expect thorough preparation, aggressive cross-examination, and minimal willingness to compromise on damages or liability.",
+  "emotionalProfile": {
+    "temperament": "Aggressive and Persistent",
+    "patience": 35,
+    "opennessToSettlement": 25,
+    "empathy": {
+      "plaintiff": 90,
+      "defendant": 15
+    },
+    "communicationStyle": "Direct and Confrontational"
+  },
+  "strengths": [
+    {
+      "area": "Trial Advocacy",
+      "level": 9,
+      "note": "Exceptional courtroom presence and persuasive speaking ability. Rarely loses jury trials."
+    },
+    {
+      "area": "Evidence Presentation",
+      "level": 8,
+      "note": "Skilled at presenting complex evidence in clear, compelling narratives."
+    },
+    {
+      "area": "Cross-Examination",
+      "level": 9,
+      "note": "Known for aggressive and effective cross-examination that undermines defense witnesses."
+    },
+    {
+      "area": "Precedent Research",
+      "level": 8,
+      "note": "Maintains extensive case law database and effectively leverages precedent."
+    }
+  ],
+  "weaknesses": [
+    {
+      "area": "Settlement Negotiation",
+      "level": 3,
+      "note": "Reluctant to compromise, which can lead to unnecessary trials and higher costs."
+    },
+    {
+      "area": "Novel Legal Arguments",
+      "level": 4,
+      "note": "Prefers established legal theories; less comfortable with innovative arguments."
+    },
+    {
+      "area": "Sympathy for Defendants",
+      "level": 2,
+      "note": "Tends to view defendants as adversaries rather than considering mitigating circumstances."
+    }
+  ],
+  "tacticalProfile": {
+    "openingStatementStyle": "Aggressive and narrative-driven, establishes clear villain/victim dynamic",
+    "crossExaminationApproach": "Confrontational, focuses on inconsistencies and character impeachment",
+    "closingArgumentStrategy": "Combines emotional appeal with precedent-heavy legal analysis",
+    "evidencePriority": [
+      "Physical evidence and medical records",
+      "Witness testimony (especially expert witnesses)",
+      "Documentary evidence (contracts, communications)",
+      "Character evidence"
+    ],
+    "commonTactics": [
+      "Pre-trial motions to exclude defense evidence",
+      "Aggressive deposition questioning to lock in testimony",
+      "Strategic use of expert witnesses to establish liability",
+      "Emphasis on defendant's prior conduct or patterns",
+      "Maximum damage calculations with detailed economic analysis"
+    ]
+  },
+  "quantitativeHistory": {
+    "casesWon": 108,
+    "casesLost": 41,
+    "settlementsReached": 35,
+    "totalCases": 184,
+    "averageSettlementPercentage": 85,
+    "averageJuryAwardPercentage": 78,
+    "averageTrialLength": "8.5 days"
+  },
+  "caseTypeExperience": {
+    "personalInjury": {
+      "cases": 45,
+      "winRate": 78,
+      "averageAward": 650000
+    },
+    "assault": {
+      "cases": 32,
+      "winRate": 75,
+      "averageAward": 425000
+    },
+    "negligence": {
+      "cases": 38,
+      "winRate": 68,
+      "averageAward": 380000
+    },
+    "propertyDamage": {
+      "cases": 25,
+      "winRate": 72,
+      "averageAward": 150000
+    },
+    "contractDisputes": {
+      "cases": 44,
+      "winRate": 70,
+      "averageAward": 275000
+    }
+  }
+}
+

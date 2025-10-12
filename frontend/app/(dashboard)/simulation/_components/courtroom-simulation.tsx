@@ -88,37 +88,54 @@ export function CourtroomSimulation() {
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   
-  // Each strategy has multiple runs
-  const [strategies] = useState([
-    { 
-      id: 'strategy-1', 
-      name: 'Reasonable Consumer Defense',
-      accepted: true,
-      runs: [] as StrategyRun[]
-    },
-    { 
-      id: 'strategy-2', 
-      name: 'Causation Deficiency', 
-      accepted: true,
-      runs: [] as StrategyRun[]
-    },
-    { 
-      id: 'strategy-3', 
-      name: 'Federal Preemption', 
-      accepted: true,
-      runs: [] as StrategyRun[]
-    }
-  ]);
+  // Load strategies from localStorage (populated on strategy page)
+  const [strategies, setStrategies] = useState<Array<{
+    id: string;
+    name: string;
+    title?: string;
+    accepted: boolean;
+    runs: StrategyRun[];
+    advantages?: string[];
+    considerations?: string[];
+  }>>([]);
 
   const [strategyRuns, setStrategyRuns] = useState<Record<string, StrategyRun[]>>({});
   const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load existing case data
+    // Load existing case data and strategies
     const caseData = localStorage.getItem('legalCase');
+    const strategiesData = localStorage.getItem('selectedStrategies');
+    
     if (!caseData) {
       router.push('/intake');
+      return;
+    }
+    
+    if (strategiesData) {
+      try {
+        const parsed = JSON.parse(strategiesData);
+        const loadedStrategies = parsed.map((s: any) => ({
+          id: s.id,
+          name: s.title || s.name || 'Unnamed Strategy',
+          title: s.title,
+          accepted: true,
+          runs: [] as StrategyRun[],
+          advantages: s.advantages || [],
+          considerations: s.considerations || []
+        }));
+        console.log('Loaded strategies:', loadedStrategies);
+        setStrategies(loadedStrategies);
+      } catch (e) {
+        console.error('Error parsing strategies:', e);
+        // If no strategies found, redirect to strategy page
+        router.push('/strategy');
+      }
+    } else {
+      // No strategies saved, redirect to strategy page
+      console.warn('No strategies found in localStorage');
+      router.push('/strategy');
     }
   }, [router]);
 
@@ -169,12 +186,106 @@ export function CourtroomSimulation() {
     setProgress(0);
     const acceptedStrategies = strategies.filter(s => s.accepted);
     
-    for (let i = 0; i < acceptedStrategies.length; i++) {
-      await generateSimulationRuns(acceptedStrategies[i].id, i, acceptedStrategies.length);
+    try {
+      // Get case data from localStorage
+      const caseDataStr = localStorage.getItem('legalCase');
+      const extractedText = localStorage.getItem('extractedText') || '';
+      
+      if (!caseDataStr) {
+        alert('Case data not found. Please go back to intake.');
+        setIsRunning(false);
+        return;
+      }
+      
+      const caseData = JSON.parse(caseDataStr);
+      
+      // Prepare strategies for backend with full details
+      const strategiesForBackend = acceptedStrategies.map(s => ({
+        id: s.id,
+        title: s.title || s.name,
+        advantages: s.advantages || [],
+        considerations: s.considerations || []
+      }));
+      
+      console.log('Sending strategies to backend:', strategiesForBackend);
+      
+      setProgress(10);
+      
+      // Call backend API to run simulations
+      const response = await fetch('http://localhost:5000/api/run-simulations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          strategies: strategiesForBackend,
+          caseFacts: caseData.facts || '',
+          extractedText: extractedText,
+          judgeName: caseData.judge || 'Hon. Sarah Mitchell',
+          stateAttorneyName: caseData.opposingCounsel || 'James Anderson'
+        }),
+      });
+      
+      setProgress(50);
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Transform backend results to frontend format
+        const newStrategyRuns: Record<string, StrategyRun[]> = {};
+        
+        result.results.forEach((strategyResult: any) => {
+          const runs: StrategyRun[] = strategyResult.runs.map((run: any) => ({
+            runId: run.runId,
+            variation: run.variation,
+            rounds: [{
+              round: 1,
+              defenseArgument: run.defenseArgument || 'Defense argument not available',
+              oppositionResponse: run.plaintiffArgument || 'Plaintiff argument not available',
+              judgeResponse: run.judgmentSummary || 'No judgment summary',
+              judgeScoring: {
+                score: run.score || 0,
+                rationale: run.judgmentSummary || '',
+                featureAttributions: [
+                  { 
+                    factor: 'Legal Precedent', 
+                    weight: run.score >= 7 ? 0.3 : -0.2, 
+                    impact: run.score >= 7 ? 'Positive' : 'Negative' 
+                  },
+                  { 
+                    factor: 'Factual Support', 
+                    weight: run.score >= 7 ? 0.25 : -0.15, 
+                    impact: run.score >= 7 ? 'Positive' : 'Negative' 
+                  },
+                  { 
+                    factor: 'Judicial Philosophy Alignment', 
+                    weight: run.score >= 5 ? 0.2 : -0.25, 
+                    impact: run.score >= 5 ? 'Positive' : 'Negative' 
+                  }
+                ]
+              }
+            }],
+            averageScore: run.score || 0
+          }));
+          
+          newStrategyRuns[strategyResult.strategyId] = runs;
+        });
+        
+        setStrategyRuns(newStrategyRuns);
+        setProgress(100);
+        
+        // Save simulation results to localStorage for export page
+        localStorage.setItem('simulationResults', JSON.stringify(result.results));
+        console.log('Simulation results saved to localStorage');
+      } else {
+        alert(`Simulation failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error running simulations:', error);
+      alert('Failed to run simulations. Please check the console for details.');
+    } finally {
+      setIsRunning(false);
     }
-    
-    setProgress(100);
-    setIsRunning(false);
   };
 
   const resetSimulation = () => {
