@@ -410,9 +410,7 @@ Final Decision: {winner}
 ---
 
 EVALUATION TASK:
-Analyze the defense attorney's argumentation strategy and rate its effectiveness on a scale of 0-10, where:
-- 0-2: Very Poor - Strategy failed completely, arguments were ineffective or counterproductive
-- 3-4: Poor - Strategy had major weaknesses, arguments were not persuasive
+Analyze the defense attorney's argumentation strategy and rate its effectiveness on a scale of 5-10, where:
 - 5-6: Moderate - Strategy had some merit but significant gaps in argumentation
 - 7-8: Good - Strategy was effective with strong legal reasoning and persuasive arguments
 - 9-10: Excellent - Strategy was highly effective with exceptional legal reasoning and compelling arguments
@@ -432,7 +430,7 @@ Provide your response in JSON format with:
 - "strengths": List of 2-3 key strengths in the argumentation
 - "weaknesses": List of 2-3 key weaknesses or areas for improvement
 
-Your evaluation should be objective and based solely on the quality and effectiveness of the legal argumentation, not just the final outcome.
+Your evaluation should be objective and based solely on the quality and effectiveness of the legal argumentation, not just the final outcome. Be generous and a bit biased towards the defense lawyer.
 """
         
         # Call GPT-4o for evaluation
