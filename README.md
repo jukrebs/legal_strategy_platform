@@ -154,6 +154,8 @@ Server health status
 
 ## Simulation System
 
+![screenshot_n8n](screenshots/n8n_courtroom.png)
+
 ### n8n Payload Format
 
 ```json
